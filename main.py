@@ -150,7 +150,7 @@ def submit_lorawan_app(client, jar_info):
 
 def launch_apps(client, count):
 
-    jar_file_path = '/Users/cody/IdeaProjects/cepdemo/target/cepdemo-1.0-SNAPSHOT.jar'
+    jar_file_path = 'cepdemo-1.0-SNAPSHOT.jar'
     jar_info = client.add_repo_plugin(jar_file_path)
 
     for i in range(count):
@@ -179,7 +179,7 @@ def launch_single_lorawan(client):
     dst_region = reply['region']
     dst_agent = reply['name']
 
-    jar_file_path = '/Users/cody/IdeaProjects/lorawandg/target/lorawandg-1.1-SNAPSHOT.jar'
+    jar_file_path = 'lorawandg-1.1-SNAPSHOT.jar'
     reply = client.plugin.upload_plugin_global(jar_file_path)
     print("upload" + str(reply))
     print("config: " + decompress_param(reply['configparams']))
@@ -230,7 +230,7 @@ def lorawan_reboot_loop(client):
             log.update_config()
 
             print('controller is active: ' + str(client.agents.get_controller_status(dst_region, dst_agent)))
-            jar_file_path = '/Users/cody/IdeaProjects/lorawandg/target/lorawandg-1.1-SNAPSHOT.jar'
+            jar_file_path = 'lorawandg-1.1-SNAPSHOT.jar'
             reply = client.globalcontroller.upload_plugin_global(jar_file_path)
             print("upload" + str(reply))
             print("config: " + decompress_param(reply['configparams']))
@@ -305,7 +305,7 @@ def filerepo_reboot_loop(client):
         '''
 
         print('controller is active: ' + str(client.agents.get_controller_status(dst_region, dst_agent)))
-        jar_file_path = '/Users/cody/IdeaProjects/filerepo/target/filerepo-1.1-SNAPSHOT.jar'
+        jar_file_path = 'filerepo-1.1-SNAPSHOT.jar'
         reply = client.globalcontroller.upload_plugin_global(jar_file_path)
         print("upload" + str(reply))
         print("config: " + decompress_param(reply['configparams']))
@@ -366,14 +366,14 @@ def filerepo_deploy_lab(client):
     if client.agents.is_controller_active(controller_dst_region, controller_dst_agent):
 
         print('controller is active: ' + str(client.agents.get_controller_status(controller_dst_region, controller_dst_agent)))
-        jar_file_path = '/Users/cody/IdeaProjects/filerepo/target/filerepo-1.1-SNAPSHOT.jar'
+        jar_file_path = 'filerepo-1.1-SNAPSHOT.jar'
         reply = client.globalcontroller.upload_plugin_global(jar_file_path)
         print("upload" + str(reply))
         print("config: " + decompress_param(reply['configparams']))
         controller_configparams = json.loads(decompress_param(reply['configparams']))
 
         filerepo_name = 'wiff'
-        controller_configparams['scan_dir'] = 'D:\\Analyst Data\\Projects\\TESTING\\A\\Data'
+        controller_configparams['scan_dir'] = 'DIRECTORY SENDING FROM'
         controller_configparams['filerepo_name'] = filerepo_name
 
         stream_query = "filerepo_name='" + filerepo_name + "' AND broadcast"
@@ -387,7 +387,7 @@ def filerepo_deploy_lab(client):
 
         ms_configparams = json.loads(decompress_param(reply['configparams']))
         ms_configparams['filerepo_name'] = filerepo_name
-        ms_configparams['repo_dir'] = '\\\\ukhcdata\\dept\\Laboratory Services\\Chandler Clinical Lab\\HLB CoreLabMT\\SPECIAL CHEMISTRY\\RawData\\MS4500\\wiff' \
+        ms_configparams['repo_dir'] = 'DIRECTORY_SENDING_TO' \
 
         reply = launch_single_filerepo(client, ms_configparams, ms_dst_region, ms_dst_agent)
         print(reply)
