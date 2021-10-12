@@ -37,9 +37,15 @@ def filerepo_deploy_single_node(client, dst_region, dst_agent):
 
     if client.agents.is_controller_active(dst_region, dst_agent):
 
-        #log = client.get_logstreamer()
-        #log.connect()
-        #log.update_config()
+        # An optional custom logger callback
+        def logger_callback(n):
+            print("Custom logger callback Message = " + str(n))
+
+        # Optionally connect to the agent logger stream
+        log = client.get_logstreamer(logger_callback)
+        log.connect()
+        # Enable logging stream, this needs work, should be selectable via class and level
+        log.update_config(dst_region, dst_agent)
 
         print('Global Controller Status: ' + str(client.agents.get_controller_status(dst_region, dst_agent)))
 
@@ -66,57 +72,107 @@ def filerepo_deploy_single_node(client, dst_region, dst_agent):
             Path(src_repo_path + '/' + str(i)).touch()
 
         # describe the dataplane query allowing python client to listen in on filerepo communications
+        # this is not needed, but lets us see what is being communicated by the plugins
         stream_query = "filerepo_name='" + filerepo_name + "' AND broadcast"
         print('Client stream query ' + stream_query)
-        # create a dataplane listner for incoming data
-        print('* Data plane is currently broken on the client*')
-        #dp = client.get_dataplane(stream_query)
+        # create a dataplane listener for incoming data
+
+        # example of an (optional) custom callback to process incoming data from the dataframe
+        def dp_callback(n):
+            n = json.loads(n)
+            print("Custom DP callback Message = " + str(n))
+            print("Custom DP callback Message Type = " + str(type(n)))
+
+        print('Connecting to DP')
+        dp = client.get_dataplane(stream_query,dp_callback)
         # connect the listener
-        #dp.connect()
+        dp.connect()
 
         # node 0 : file repo sender configuration
         # Use base configparams (plugin_name, md5, etc.) that were extracted during plugin upload
         configparams = json.loads(decompress_param(reply['configparams']))
+
+        cadl = dict()
+        cadl['pipeline_id'] = '0'
+        cadl['pipeline_name'] = str(uuid.uuid1())
+        cadl['nodes'] = []
+        cadl['edges'] = []
+
+        params0 = dict()
+        # Add plugin information
+        params0['pluginname'] = configparams['pluginname']
+        params0['md5'] = configparams['md5']
+        params0['version'] = configparams['version']
+        # Add location information
+        params0["location_region"] = dst_region
+        params0["location_agent"] = dst_agent
         # Add repo name, which is used in the broadcast of state
-        configparams['filerepo_name'] = filerepo_name
+        params0["filerepo_name"] = filerepo_name
         # Add scan_dir config telling filerepo to be a sender, and sync our local repo
-        configparams['scan_dir'] = src_repo_path
+        params0["scan_dir"] = src_repo_path
+
+        node0 = dict()
+        node0['type'] = 'dummy'
+        node0['node_name'] = 'SRC Plugin'
+        node0['node_id'] = 0
+        node0['isSource'] = False
+        node0['workloadUtil'] = 0
+        node0['params'] = params0
+
+        params1 = dict()
+        # Add plugin information
+        params1['pluginname'] = configparams['pluginname']
+        params1['md5'] = configparams['md5']
+        params1['version'] = configparams['version']
+        # Add location information
+        params1["location_region"] = dst_region
+        params1["location_agent"] = dst_agent
+        # Add repo name, which is used in the broadcast of state
+        params1["filerepo_name"] = filerepo_name
+        # Add repo_dir config telling filerepo to recv
+        params1["repo_dir"] = dst_repo_path
+
+        node1 = dict()
+        node1['type'] = 'dummy'
+        node1['node_name'] = 'DST Plugin'
+        node1['node_id'] = 1
+        node1['isSource'] = False
+        node1['workloadUtil'] = 0
+        node1['params'] = params1
+
+        edge0 = dict()
+        edge0['edge_id'] = 0
+        edge0['node_from'] = 0
+        edge0['node_to'] = 1
+        edge0['params'] = dict()
+
+        cadl['nodes'].append(node0)
+        cadl['nodes'].append(node1)
+        cadl['edges'].append(edge0)
+
 
         # Push config and start sending repo plugin
-        reply = client.agents.add_plugin_agent(dst_region, dst_agent, configparams, None)
-        # name of src plugin to remove when finished
-        src_repo_plugin_id = reply['pluginid']
+        reply = client.globalcontroller.submit_pipeline(cadl)
+        # name of pipeline remove when finished
+        print('Status of filerepo pipeline submit: ' + str(reply))
 
-        print('Status of filerepo sender submit: ' + str(reply))
+        pipeline_id = reply['gpipeline_id']
+        while client.globalcontroller.get_pipeline_status(pipeline_id) != 10:
+            print('waiting for pipeline_id: ' + pipeline_id + ' to come online')
+            time.sleep(2)
 
-        # Take existing config and modify it for the recv plugin
-        # Remove the scan_dir config, so sender functions don't start
-        configparams.pop('scan_dir', None)
-        # Add repo_dir location
-        configparams['repo_dir'] = dst_repo_path
 
-        # Push config and start recv repo plugin
-        reply = client.agents.add_plugin_agent(dst_region, dst_agent, configparams, None)
-        # name of dst plugin to remove when finished
-        dst_repo_plugin_id = reply['pluginid']
-        print('Status of filerepo recv submit: ' + str(reply))
 
-        # wait for 2 min
-        for i in range(60):
+        # wait for sync
+        for i in range(20):
             time.sleep(1)
 
-        # remove recv plugin
-        reply = client.agents.remove_plugin_agent(dst_region, dst_agent, dst_repo_plugin_id)
-        print('Status of filerepo recv remove: ' + str(reply))
+        # remove the pipeline
+        client.globalcontroller.remove_pipeline(pipeline_id)
 
-        # remove send plugin
-        reply = client.agents.remove_plugin_agent(dst_region, dst_agent, src_repo_plugin_id)
-        print('Status of filerepo src remove: ' + str(reply))
-
-        #close dp
-        #dp.close()
-
-
+        while client.globalcontroller.get_pipeline_status(pipeline_id) == 10:
+            print('waiting for pipeline_id: ' + pipeline_id + ' to shutdown')
+            time.sleep(1)
 
 
 
@@ -429,8 +485,8 @@ def filerepo_reboot_loop(client):
         dp = client.get_dataplane(stream_query)
         dp.connect()
 
-        reply = launch_single_filerepo(client, configparams, dst_region, dst_agent)
-        print(reply)
+        #reply = launch_single_filerepo(client, configparams, dst_region, dst_agent)
+        #print(reply)
 
         '''
         for i in range(10):
@@ -443,8 +499,8 @@ def filerepo_reboot_loop(client):
 
         configparams.pop('scan_dir', None)
         configparams['repo_dir'] = '/Users/cody/IdeaProjects/filerepo/rp0'
-        reply = launch_single_filerepo(client, configparams, dst_region, 'agent-controller')
-        print(reply)
+        #reply = launch_single_filerepo(client, configparams, dst_region, 'agent-controller')
+        #print(reply)
         '''
         configparams['repo_dir'] = '/Users/cody/IdeaProjects/filerepo/rp1'
         reply = launch_single_filerepo(client, configparams, dst_region, dst_agent)
