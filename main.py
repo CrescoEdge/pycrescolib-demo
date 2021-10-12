@@ -47,6 +47,9 @@ if __name__ == "__main__":
 
             filerepo_deploy_single_node(client, dst_region, dst_agent)
 
+
+        client.close()
+
         #dst_region = 'global-region'
         #dst_agent = 'global-controller'
         #jar_file_path = 'controller-1.1-SNAPSHOT.jar'
@@ -128,8 +131,6 @@ if __name__ == "__main__":
         #client.admin.stopcontroller(dst_region, dst_agent)
         #reply = client.agents.get_broadcast_discovery(dst_region,'agent-controller')
         #print(reply)
-        exit(0)
-
 
         #filerepo_reboot_loop(client)
         #lorawan_reboot_loop(client)
@@ -151,4 +152,4 @@ if __name__ == "__main__":
         #launch_apps(client, 10)
         #shutdown_apps(client)
 
-    client.close()
+
