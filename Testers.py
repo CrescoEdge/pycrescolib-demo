@@ -60,10 +60,12 @@ def filerepo_deploy_single_node(client, dst_region, dst_agent):
         filerepo_name = str(uuid.uuid1())
         # location to sync
         src_repo_path = 'test_data/' + str(uuid.uuid1())
+        src_repo_path = os.path.abspath(src_repo_path)
         os.makedirs(src_repo_path)
         print('src_repo_path: ' + src_repo_path)
         # location to store
         dst_repo_path = 'test_data/' + str(uuid.uuid1())
+        dst_repo_path = os.path.abspath(dst_repo_path)
         os.makedirs(dst_repo_path)
         print('dst_repo_path: ' + dst_repo_path)
 
@@ -173,7 +175,6 @@ def filerepo_deploy_single_node(client, dst_region, dst_agent):
         while client.globalcontroller.get_pipeline_status(pipeline_id) == 10:
             print('waiting for pipeline_id: ' + pipeline_id + ' to shutdown')
             time.sleep(1)
-
 
 
 #old

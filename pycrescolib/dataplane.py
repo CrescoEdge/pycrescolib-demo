@@ -37,7 +37,7 @@ class dataplane(object):
         print(error)
 
     def on_close(self, ws):
-        self.ws.close()
+        print("### closed dataplane ###")
 
     def on_open(self, ws):
         self.ws.send(self.stream_name)
