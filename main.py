@@ -3,7 +3,7 @@ import random
 import time
 import uuid
 
-from pycrescolib import clientlib
+from pycrescolib.clientlib import clientlib
 from pycrescolib.utils import compress_param, decompress_param
 
 
@@ -397,9 +397,9 @@ def filerepo_deploy_lab(client):
 
 if __name__ == "__main__":
 
-    host = 'HOSTNAME'
+    host = 'localhost'
     port = 8282
-    service_key = 'SERVICE_KEY'
+    service_key = '1234'
 
     client = clientlib(host, port, service_key)
     if client.connect():
