@@ -1,2 +1,4 @@
 # Project exclude paths
 /venv/
+/plugins/
+/test_data/
