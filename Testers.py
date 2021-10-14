@@ -176,6 +176,144 @@ def filerepo_deploy_single_node(client, dst_region, dst_agent):
             print('waiting for pipeline_id: ' + pipeline_id + ' to shutdown')
             time.sleep(1)
 
+def executor_deploy_single_node(client, dst_region, dst_agent):
+
+    #wait if client is not connected
+    while not client.connected():
+        print('Waiting on client connection')
+        time.sleep(10)
+        client.connect()
+
+    if client.agents.is_controller_active(dst_region, dst_agent):
+
+        # An optional custom logger callback
+        def logger_callback(n):
+            print("Custom logger callback Message = " + str(n))
+
+        # Optionally connect to the agent logger stream
+        log = client.get_logstreamer(logger_callback)
+        log.connect()
+        # Enable logging stream, this needs work, should be selectable via class and level
+        log.update_config(dst_region, dst_agent)
+
+        print('Global Controller Status: ' + str(client.agents.get_controller_status(dst_region, dst_agent)))
+
+        #upload filerepo plugin to global controller
+        jar_file_path = get_plugin_from_git("https://github.com/CrescoEdge/executor/releases/download/1.1-SNAPSHOT/executor-1.1-SNAPSHOT.jar")
+        reply = client.globalcontroller.upload_plugin_global(jar_file_path)
+        print("upload status: " + str(reply))
+        print("plugin config: " + decompress_param(reply['configparams']))
+
+        stream_name = str(uuid.uuid1()) #this will be used to get input back from the dataplane
+
+        # describe the dataplane query allowing python client to listen in on filerepo communications
+        # this is not needed, but lets us see what is being communicated by the plugins
+        stream_query = "stream_name='" + stream_name + "'"
+        print('Client stream query ' + stream_query)
+        # create a dataplane listener for incoming data
+
+
+        # example of an (optional) custom callback to write executor output to a file
+        def dp_callback(n):
+
+            print("Custom DP callback Message = " + str(n))
+
+        print('Connecting to DP')
+        dp = client.get_dataplane(stream_query,dp_callback)
+        # connect the listener
+        dp.connect()
+
+        # node 0 : file repo sender configuration
+        # Use base configparams (plugin_name, md5, etc.) that were extracted during plugin upload
+        configparams = json.loads(decompress_param(reply['configparams']))
+
+        cadl = dict()
+        cadl['pipeline_id'] = '0'
+        cadl['pipeline_name'] = str(uuid.uuid1())
+        cadl['nodes'] = []
+        cadl['edges'] = []
+
+        params0 = dict()
+        # Add plugin information
+        params0['pluginname'] = configparams['pluginname']
+        params0['md5'] = configparams['md5']
+        params0['version'] = configparams['version']
+        # Add location information
+        params0["location_region"] = dst_region
+        params0["location_agent"] = dst_agent
+
+        # We can configure the plugin to run a job on startup, but in this case we will send several commands interactivly
+        # Add name of stream for subscription
+        #params0["stream_name"] = stream_name
+        # Add scan_dir config telling filerepo to be a sender, and sync our local repo
+        #params0["command"] = "ls -la"
+
+        node0 = dict()
+        node0['type'] = 'dummy'
+        node0['node_name'] = 'SRC Plugin'
+        node0['node_id'] = 0
+        node0['isSource'] = False
+        node0['workloadUtil'] = 0
+        node0['params'] = params0
+
+        edge0 = dict()
+
+        cadl['nodes'].append(node0)
+        #cadl['edges'].append(edge0)
+
+
+        # Push config and start sending repo plugin
+        reply = client.globalcontroller.submit_pipeline(cadl)
+        # name of pipeline remove when finished
+        print('Status of executor pipeline submit: ' + str(reply))
+
+        pipeline_id = reply['gpipeline_id']
+        while client.globalcontroller.get_pipeline_status(pipeline_id) != 10:
+            print('waiting for pipeline_id: ' + pipeline_id + ' to come online')
+            time.sleep(2)
+
+        #get the plugin_id of the executor plugin
+        executor_plugin_id = client.globalcontroller.get_pipeline_info(pipeline_id)['nodes'][0]['node_id']
+
+        # this code makes use of a global message to find a specific plugin type, then send a message to that plugin
+        message_event_type = 'CONFIG'
+        message_payload = dict()
+        message_payload['action'] = 'config_process'
+        message_payload['stream_name'] = stream_name
+        #adjust for windows vs linux
+        message_payload['command'] = 'ls -la'
+
+        result = client.messaging.global_plugin_msgevent(True, message_event_type, message_payload, dst_region, dst_agent, executor_plugin_id)
+        print(result)
+        print('config status: ' + str(result['config_status']))
+
+        # this code makes use of a global message to find a specific plugin type, then send a message to that plugin
+        message_payload['action'] = 'start_process'
+        message_payload['stream_name'] = stream_name
+
+        result = client.messaging.global_plugin_msgevent(True, message_event_type, message_payload, dst_region,
+                                                         dst_agent, executor_plugin_id)
+        print('start status: ' + str(result['start_status']))
+
+        # this code makes use of a global message to find a specific plugin type, then send a message to that plugin
+        message_payload['action'] = 'end_process'
+        message_payload['stream_name'] = stream_name
+
+        result = client.messaging.global_plugin_msgevent(True, message_event_type, message_payload, dst_region,
+                                                         dst_agent, executor_plugin_id)
+        print('end status: ' + str(result['end_status']))
+
+        print('Results of executor command:')
+
+        #os.remove('tmp_file.txt')
+
+        # remove the pipeline
+        client.globalcontroller.remove_pipeline(pipeline_id)
+
+        while client.globalcontroller.get_pipeline_status(pipeline_id) == 10:
+            print('waiting for pipeline_id: ' + pipeline_id + ' to shutdown')
+            time.sleep(1)
+
 
 #old
 def upgrade_controller_plugin(client, dst_region, dst_agent, jar_file_path):

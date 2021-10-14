@@ -1,7 +1,7 @@
 
 from pycrescolib.clientlib import clientlib
 
-from Testers import filerepo_deploy_single_node
+from Testers import filerepo_deploy_single_node, executor_deploy_single_node
 
 if __name__ == "__main__":
 
@@ -18,7 +18,9 @@ if __name__ == "__main__":
     #connect client to wsapi plugin
     if client.connect():
 
-        test_case = 1
+        #test_case = 0 # Get a list of agents from a controller
+        #test_case = 1 # Filerepo example on a single node
+        test_case = 2 # Executor example on a single node
 
         #test_case 0: Get the list of agents from the agent global controller
         if test_case == 0:
@@ -47,6 +49,14 @@ if __name__ == "__main__":
 
             filerepo_deploy_single_node(client, dst_region, dst_agent)
 
+        if test_case == 2:
+
+            # name of agent global controller region
+            dst_region = 'global-region'
+            # name of agent global controller agent
+            dst_agent = 'global-controller'
+
+            executor_deploy_single_node(client, dst_region, dst_agent)
 
         client.close()
 
