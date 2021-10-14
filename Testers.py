@@ -262,7 +262,7 @@ def executor_deploy_single_node(client, dst_region, dst_agent):
         #cadl['edges'].append(edge0)
 
 
-        # Push config and start sending repo plugin
+        # Push config and start executor plugin
         reply = client.globalcontroller.submit_pipeline(cadl)
         # name of pipeline remove when finished
         print('Status of executor pipeline submit: ' + str(reply))
@@ -276,6 +276,7 @@ def executor_deploy_single_node(client, dst_region, dst_agent):
         executor_plugin_id = client.globalcontroller.get_pipeline_info(pipeline_id)['nodes'][0]['node_id']
 
         # this code makes use of a global message to find a specific plugin type, then send a message to that plugin
+        # send a config message to setup the config of the executor
         message_event_type = 'CONFIG'
         message_payload = dict()
         message_payload['action'] = 'config_process'
@@ -287,7 +288,7 @@ def executor_deploy_single_node(client, dst_region, dst_agent):
         print(result)
         print('config status: ' + str(result['config_status']))
 
-        # this code makes use of a global message to find a specific plugin type, then send a message to that plugin
+        # Now send a message to start the process
         message_payload['action'] = 'start_process'
         message_payload['stream_name'] = stream_name
 
@@ -295,17 +296,13 @@ def executor_deploy_single_node(client, dst_region, dst_agent):
                                                          dst_agent, executor_plugin_id)
         print('start status: ' + str(result['start_status']))
 
-        # this code makes use of a global message to find a specific plugin type, then send a message to that plugin
+        # the process might have already ended, but this is also used to cleanup the task
         message_payload['action'] = 'end_process'
         message_payload['stream_name'] = stream_name
 
         result = client.messaging.global_plugin_msgevent(True, message_event_type, message_payload, dst_region,
                                                          dst_agent, executor_plugin_id)
         print('end status: ' + str(result['end_status']))
-
-        print('Results of executor command:')
-
-        #os.remove('tmp_file.txt')
 
         # remove the pipeline
         client.globalcontroller.remove_pipeline(pipeline_id)
