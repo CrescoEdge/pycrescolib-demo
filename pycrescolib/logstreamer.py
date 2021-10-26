@@ -43,8 +43,8 @@ class logstreamer(object):
 
         '''
         #message = 'global-region,global-controller,io.cresco,Trace'
-        message = dst_region + ',' + dst_agent + ',Info,default'
-        #message = dst_region + ',' + dst_agent + ',Trace,default'
+        #message = dst_region + ',' + dst_agent + ',Info,default'
+        message = dst_region + ',' + dst_agent + ',Trace,default'
 
         self.ws.send(message)
 

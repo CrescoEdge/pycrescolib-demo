@@ -1,12 +1,14 @@
 
 from pycrescolib.clientlib import clientlib
 
-from Testers import filerepo_deploy_single_node, executor_deploy_single_node
+from Testers import filerepo_deploy_single_node, filerepo_deploy_multi_node, debug_agent, \
+    executor_deploy_single_node_pipeline, executor_deploy_single_node_plugin
 
 if __name__ == "__main__":
 
     #Hostname of the agent global controler hosting the wsapi plugin
     host = 'localhost'
+    #host = '10.28.71.118'
     #Port of wsapi / Default: 8282
     port = 8282
     #Service key for wsapu instance
@@ -20,7 +22,7 @@ if __name__ == "__main__":
 
         #test_case = 0 # Get a list of agents from a controller
         #test_case = 1 # Filerepo example on a single node
-        test_case = 2 # Executor example on a single node
+        test_case = 5 # Executor example on a single node
 
         #test_case 0: Get the list of agents from the agent global controller
         if test_case == 0:
@@ -56,9 +58,40 @@ if __name__ == "__main__":
             # name of agent global controller agent
             dst_agent = 'global-controller'
 
-            executor_deploy_single_node(client, dst_region, dst_agent)
+            executor_deploy_single_node_pipeline(client, dst_region, dst_agent)
+
+        if test_case == 3:
+
+            # name of agent global controller region
+            dst_region = 'lab'
+            # name of agent global controller agent
+            dst_agent = 'controller'
+
+            filerepo_deploy_multi_node(client, dst_region, dst_agent)
+
+        if test_case == 4:
+
+            # name of agent global controller region
+            dst_region = 'lab'
+            # name of agent global controller agent
+            dst_agent = 'controller'
+
+            debug_agent(client, dst_region, dst_agent)
+
+
+        if test_case == 5:
+
+            # name of agent global controller region
+            dst_region = 'global-region'
+            # name of agent global controller agent
+            dst_agent = 'global-controller'
+
+            executor_deploy_single_node_plugin(client, dst_region, dst_agent)
+
 
         client.close()
+
+
 
         #dst_region = 'global-region'
         #dst_agent = 'global-controller'
