@@ -228,50 +228,57 @@ def executor_deploy_single_node_plugin(client, dst_region, dst_agent):
         # Use base configparams (plugin_name, md5, etc.) that were extracted during plugin upload
         configparams = json.loads(decompress_param(reply['configparams']))
 
-        reply = client.agents.add_plugin_agent(dst_region, dst_agent, configparams, None)
-        plugin_id = reply['pluginid']
+        plugin_count = 3
+        plugin_list = []
 
-        print('Status of executor plugin submit: ' + str(reply))
+        for x in range(plugin_count):
+
+            reply = client.agents.add_plugin_agent(dst_region, dst_agent, configparams, None)
+            plugin_id = reply['pluginid']
+            plugin_list.append(plugin_id)
+            print('Status of executor plugin submit: ' + str(x) + ' ' + str(reply))
 
         while not client.agents.status_plugin_agent(dst_region, dst_agent, plugin_id)['isactive']:
             print('waiting for plugin_id: ' + plugin_id + ' to come online')
             time.sleep(2)
 
         '''
-        # this code makes use of a global message to find a specific plugin type, then send a message to that plugin
-        # send a config message to setup the config of the executor
-        message_event_type = 'CONFIG'
-        message_payload = dict()
-        message_payload['action'] = 'config_process'
-        message_payload['stream_name'] = stream_name
-        #adjust for windows vs linux
-        message_payload['command'] = 'ls -la'
+        for plugin_id in plugin_list:
 
-        result = client.messaging.global_plugin_msgevent(True, message_event_type, message_payload, dst_region, dst_agent, plugin_id)
-        print(result)
-        print('config status: ' + str(result['config_status']))
+            # this code makes use of a global message to find a specific plugin type, then send a message to that plugin
+            # send a config message to setup the config of the executor
+            message_event_type = 'CONFIG'
+            message_payload = dict()
+            message_payload['action'] = 'config_process'
+            message_payload['stream_name'] = stream_name
+            #adjust for windows vs linux
+            message_payload['command'] = 'ls -la'
 
-        # Now send a message to start the process
-        message_payload['action'] = 'start_process'
-        message_payload['stream_name'] = stream_name
+            result = client.messaging.global_plugin_msgevent(True, message_event_type, message_payload, dst_region, dst_agent, plugin_id)
+            print(result)
+            print('config status: ' + str(result['config_status']))
 
-        result = client.messaging.global_plugin_msgevent(True, message_event_type, message_payload, dst_region,
-                                                         dst_agent, plugin_id)
-        print('start status: ' + str(result['start_status']))
+            # Now send a message to start the process
+            message_payload['action'] = 'start_process'
+            message_payload['stream_name'] = stream_name
 
-        # the process might have already ended, but this is also used to cleanup the task
-        message_payload['action'] = 'end_process'
-        message_payload['stream_name'] = stream_name
+            result = client.messaging.global_plugin_msgevent(True, message_event_type, message_payload, dst_region,
+                                                             dst_agent, plugin_id)
+            print('start status: ' + str(result['start_status']))
 
-        result = client.messaging.global_plugin_msgevent(True, message_event_type, message_payload, dst_region,
-                                                         dst_agent, plugin_id)
-        print('end status: ' + str(result['end_status']))
-        
+            # the process might have already ended, but this is also used to cleanup the task
+            message_payload['action'] = 'end_process'
+            message_payload['stream_name'] = stream_name
+
+            result = client.messaging.global_plugin_msgevent(True, message_event_type, message_payload, dst_region,
+                                                             dst_agent, plugin_id)
+            print('end status: ' + str(result['end_status']))
         '''
 
-        reply = client.agents.remove_plugin_agent(dst_region, dst_agent, plugin_id)
-        print(reply)
-        #print(client.agents.status_plugin_agent(dst_region, dst_agent, plugin_id))
+        #for plugin_id in plugin_list:
+        #    reply = client.agents.remove_plugin_agent(dst_region, dst_agent, plugin_id)
+        #    print(reply)
+        #    #print(client.agents.status_plugin_agent(dst_region, dst_agent, plugin_id))
 
 
 
