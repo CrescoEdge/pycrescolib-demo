@@ -98,9 +98,8 @@ class agents(object):
         message_payload['action'] = 'getagentinfo'
 
         reply = self.messaging.global_agent_msgevent(True, message_event_type, message_payload, dst_region, dst_agent)
-        config = json.loads(decompress_param(reply['agent-config']))
-        data = reply['agent-data']
-        return config, data
+        reply = reply['agent-data']
+        return reply
 
 
     def repo_pull_plugin_agent(self, dst_region, dst_agent, jar_file_path):

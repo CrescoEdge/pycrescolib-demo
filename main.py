@@ -10,6 +10,7 @@ if __name__ == "__main__":
     #Hostname of the agent global controler hosting the wsapi plugin
     #host = '3.230.151.127'
     host = 'localhost'
+    #host = '10.28.77.88'
     #host = '10.28.71.118'
     #Port of wsapi / Default: 8282
     port = 8282
@@ -126,9 +127,8 @@ if __name__ == "__main__":
             dst_region = 'global-region'
             dst_agent = 'global-controller'
 
-            config, datapath = client.agents.get_agent_info(dst_region, dst_agent)
-            print(config)
-            print(datapath)
+            reply = client.agents.get_agent_info(dst_region, dst_agent)
+            print(reply)
 
         client.close()
 
