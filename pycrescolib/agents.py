@@ -15,7 +15,6 @@ class agents(object):
         message_payload['action'] = 'iscontrolleractive'
 
         reply = self.messaging.global_agent_msgevent(True, message_event_type, message_payload, dst_region, dst_agent)
-
         reply = bool(reply['is_controller_active'])
 
         return reply
@@ -91,6 +90,18 @@ class agents(object):
         reply = self.messaging.global_agent_msgevent(True, message_event_type, message_payload, dst_region, dst_agent)
         reply = json.loads(decompress_param(reply['plugin_status']))
         return reply
+
+    def get_agent_info(self, dst_region, dst_agent):
+
+        message_event_type = 'CONFIG'
+        message_payload = dict()
+        message_payload['action'] = 'getagentinfo'
+
+        reply = self.messaging.global_agent_msgevent(True, message_event_type, message_payload, dst_region, dst_agent)
+        config = json.loads(decompress_param(reply['agent-config']))
+        data = reply['agent-data']
+        return config, data
+
 
     def repo_pull_plugin_agent(self, dst_region, dst_agent, jar_file_path):
 

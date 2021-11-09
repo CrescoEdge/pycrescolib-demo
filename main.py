@@ -2,11 +2,13 @@
 from pycrescolib.clientlib import clientlib
 
 from Testers import filerepo_deploy_single_node, filerepo_deploy_multi_node, debug_agent, \
-    executor_deploy_single_node_pipeline, executor_deploy_single_node_plugin
+    executor_deploy_single_node_pipeline, executor_deploy_single_node_plugin, upgrade_controller_plugin, \
+    remove_dead_plugins, remove_dead_plugins2
 
 if __name__ == "__main__":
 
     #Hostname of the agent global controler hosting the wsapi plugin
+    #host = '3.230.151.127'
     host = 'localhost'
     #host = '10.28.71.118'
     #Port of wsapi / Default: 8282
@@ -22,7 +24,7 @@ if __name__ == "__main__":
 
         #test_case = 0 # Get a list of agents from a controller
         #test_case = 1 # Filerepo example on a single node
-        test_case = 5 # Executor example on a single node
+        test_case = 8 # Executor example on a single node
 
         #test_case 0: Get the list of agents from the agent global controller
         if test_case == 0:
@@ -78,7 +80,6 @@ if __name__ == "__main__":
 
             debug_agent(client, dst_region, dst_agent)
 
-
         if test_case == 5:
 
             # name of agent global controller region
@@ -88,6 +89,46 @@ if __name__ == "__main__":
 
             executor_deploy_single_node_plugin(client, dst_region, dst_agent)
 
+        if test_case == 6:
+
+            # name of agent global controller region
+            dst_region = 'global-region'
+            #dst_region = 'lab'
+
+            # name of agent global controller agent
+            dst_agent = 'global-controller'
+            #dst_agent = 'controller'
+
+            #location of controller jar
+            jar_file_path = '/Users/cody/IdeaProjects/controller/target/controller-1.1-SNAPSHOT.jar'
+
+            upgrade_controller_plugin(client, dst_region, dst_agent, jar_file_path)
+
+        if test_case == 7:
+
+            # name of agent global controller region
+            # dst_region = 'global-region'
+
+            #dst_region = 'global-region'
+            dst_region = 'esports'
+            #dst_region = 'lab'
+            # name of agent global controller agent
+            #dst_agent = 'global-controller'
+            #dst_agent = 'agent-2f5428bc-2225-4338-af10-383fafd7a4de'
+            #dst_agent = 'agent-3f4c8b87-19ad-446a-adc9-51519dee9b03'
+            dst_agent = 'gc'
+            #dst_agent = 'controller'
+            #dst_agent = 'MS4500'
+
+            remove_dead_plugins2(client, dst_region, dst_agent)
+
+        if test_case == 8:
+            dst_region = 'global-region'
+            dst_agent = 'global-controller'
+
+            config, datapath = client.agents.get_agent_info(dst_region, dst_agent)
+            print(config)
+            print(datapath)
 
         client.close()
 
