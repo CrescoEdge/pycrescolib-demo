@@ -1,4 +1,4 @@
-from websocket import create_connection
+from websocket import create_connection #pip install websocket-client==0.53.0
 
 class ws_interface(object):
 

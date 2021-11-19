@@ -228,7 +228,7 @@ def executor_deploy_single_node_plugin(client, dst_region, dst_agent):
         # Use base configparams (plugin_name, md5, etc.) that were extracted during plugin upload
         configparams = json.loads(decompress_param(reply['configparams']))
 
-        plugin_count = 3
+        plugin_count = 10000
         plugin_list = []
 
         for x in range(plugin_count):
@@ -273,12 +273,12 @@ def executor_deploy_single_node_plugin(client, dst_region, dst_agent):
             result = client.messaging.global_plugin_msgevent(True, message_event_type, message_payload, dst_region,
                                                              dst_agent, plugin_id)
             print('end status: ' + str(result['end_status']))
-        '''
 
-        #for plugin_id in plugin_list:
-        #    reply = client.agents.remove_plugin_agent(dst_region, dst_agent, plugin_id)
-        #    print(reply)
-        #    #print(client.agents.status_plugin_agent(dst_region, dst_agent, plugin_id))
+        '''
+        for plugin_id in plugin_list:
+            reply = client.agents.remove_plugin_agent(dst_region, dst_agent, plugin_id)
+            print(reply)
+            #print(client.agents.status_plugin_agent(dst_region, dst_agent, plugin_id))
 
 
 
@@ -417,8 +417,7 @@ def executor_deploy_single_node_pipeline(client, dst_region, dst_agent):
             print('waiting for pipeline_id: ' + pipeline_id + ' to shutdown')
             time.sleep(1)
 
-
-def filerepo_deploy_multi_node(client, dst_region, dst_agent):
+def executor_deploy_single_node_plugin(client, dst_region, dst_agent):
 
     #wait if client is not connected
     while not client.connected():
@@ -433,10 +432,111 @@ def filerepo_deploy_multi_node(client, dst_region, dst_agent):
             print("Custom logger callback Message = " + str(n))
 
         # Optionally connect to the agent logger stream
-        log = client.get_logstreamer(logger_callback)
-        log.connect()
+        #log = client.get_logstreamer(logger_callback)
+        #log.connect()
         # Enable logging stream, this needs work, should be selectable via class and level
-        log.update_config(dst_region, dst_agent)
+        #log.update_config(dst_region, dst_agent)
+
+        print('Global Controller Status: ' + str(client.agents.get_controller_status(dst_region, dst_agent)))
+
+        #upload filerepo plugin to global controller
+        jar_file_path = get_plugin_from_git("https://github.com/CrescoEdge/executor/releases/download/1.1-SNAPSHOT/executor-1.1-SNAPSHOT.jar")
+        reply = client.globalcontroller.upload_plugin_global(jar_file_path)
+        #print("upload status: " + str(reply))
+        #print("plugin config: " + decompress_param(reply['configparams']))
+
+        stream_name = str(uuid.uuid1()) #this will be used to get input back from the dataplane
+
+        # describe the dataplane query allowing python client to listen in on filerepo communications
+        # this is not needed, but lets us see what is being communicated by the plugins
+        stream_query = "stream_name='" + stream_name + "'"
+        print('Client stream query ' + stream_query)
+        # create a dataplane listener for incoming data
+
+
+        # example of an (optional) custom callback to write executor output to a file
+        def dp_callback(n):
+
+            print("Custom DP callback Message = " + str(n))
+
+        print('Connecting to DP')
+        dp = client.get_dataplane(stream_query,dp_callback)
+        print('Connecting to DP 1')
+
+        # connect the listener
+        dp.connect()
+
+        # node 0 : file repo sender configuration
+        # Use base configparams (plugin_name, md5, etc.) that were extracted during plugin upload
+        configparams = json.loads(decompress_param(reply['configparams']))
+
+        executor_plugin_id = client.agents.add_plugin_agent(dst_region, dst_agent, configparams, None)['pluginid']
+
+        while(client.agents.status_plugin_agent(dst_region,dst_agent,executor_plugin_id)['status_code'] != '10'):
+            print('waiting on startup')
+            time.sleep(1)
+
+        # this code makes use of a global message to find a specific plugin type, then send a message to that plugin
+        # send a config message to setup the config of the executor
+        message_event_type = 'CONFIG'
+        message_payload = dict()
+        message_payload['action'] = 'config_process'
+        message_payload['stream_name'] = stream_name
+        #adjust for windows vs linux
+        message_payload['command'] = 'ls -la'
+
+        result = client.messaging.global_plugin_msgevent(True, message_event_type, message_payload, dst_region, dst_agent, executor_plugin_id)
+        print(result)
+        print('config status: ' + str(result['config_status']))
+
+        # Now send a message to start the process
+        message_payload['action'] = 'start_process'
+        message_payload['stream_name'] = stream_name
+
+        result = client.messaging.global_plugin_msgevent(True, message_event_type, message_payload, dst_region,
+                                                         dst_agent, executor_plugin_id)
+        print('start status: ' + str(result['start_status']))
+
+        time.sleep(10)
+        # the process might have already ended, but this is also used to cleanup the task
+        message_payload['action'] = 'end_process'
+        message_payload['stream_name'] = stream_name
+
+        result = client.messaging.global_plugin_msgevent(True, message_event_type, message_payload, dst_region,
+                                                         dst_agent, executor_plugin_id)
+        print(result)
+        print('end status: ' + str(result['end_status']))
+
+        time.sleep(10)
+
+        # remove the pipeline
+        client.agents.remove_plugin_agent(dst_region,dst_agent,executor_plugin_id);
+
+        while (client.agents.status_plugin_agent(dst_region, dst_agent, executor_plugin_id)['status_code'] == '10'):
+            print('waiting on shutdown')
+            print(client.agents.status_plugin_agent(dst_region, dst_agent, executor_plugin_id)['status_code'])
+            time.sleep(1)
+
+
+def filerepo_deploy_multi_node(client, dst_region, dst_agent):
+
+    #wait if client is not connected
+    while not client.connected():
+        print('Waiting on client connection')
+        time.sleep(10)
+        client.connect()
+
+    if client.agents.is_controller_active(dst_region, dst_agent):
+
+        # An optional custom logger callback
+        #def logger_callback(n):
+        #    print("Custom logger callback Message = " + str(n))
+
+        # Optionally connect to the agent logger stream
+        #log = client.get_logstreamer(logger_callback)
+        #log.connect()
+        # Enable logging stream, this needs work, should be selectable via class and level
+        #log.update_config(dst_region, dst_agent)
 
         print('Global Controller Status: ' + str(client.agents.get_controller_status(dst_region, dst_agent)))
 
@@ -476,10 +576,10 @@ def filerepo_deploy_multi_node(client, dst_region, dst_agent):
             print("Custom DP callback Message = " + str(n))
             print("Custom DP callback Message Type = " + str(type(n)))
 
-        print('Connecting to DP')
-        dp = client.get_dataplane(stream_query,dp_callback)
+        #print('Connecting to DP')
+        #dp = client.get_dataplane(stream_query,dp_callback)
         # connect the listener
-        dp.connect()
+        #dp.connect()
 
         # node 0 : file repo sender configuration
         # Use base configparams (plugin_name, md5, etc.) that were extracted during plugin upload
@@ -821,17 +921,21 @@ def remove_dead_plugins2(client, dst_region, dst_agent):
 
     if client.agents.is_controller_active(dst_region, dst_agent):
 
+
+
         # An optional custom logger callback
         def logger_callback(n):
             print("Custom logger callback Message = " + str(n))
 
         # Optionally connect to the agent logger stream
-        log = client.get_logstreamer(logger_callback)
-        log.connect()
+        #log = client.get_logstreamer(logger_callback)
+        #log.connect()
         # Enable logging stream, this needs work, should be selectable via class and level
-        log.update_config(dst_region, dst_agent)
+        #log.update_config(dst_region, dst_agent)
 
+        print('connected')
         reply = client.agents.list_plugin_agent(dst_region,dst_agent)
+        print('connected list')
 
         for plugin in reply:
 

@@ -88,7 +88,8 @@ class agents(object):
         message_payload['pluginid'] = plugin_id
 
         reply = self.messaging.global_agent_msgevent(True, message_event_type, message_payload, dst_region, dst_agent)
-        reply = json.loads(decompress_param(reply['plugin_status']))
+        #print(reply)
+        #reply = json.loads(decompress_param(reply['plugin_status']))
         return reply
 
     def get_agent_info(self, dst_region, dst_agent):
@@ -99,6 +100,16 @@ class agents(object):
 
         reply = self.messaging.global_agent_msgevent(True, message_event_type, message_payload, dst_region, dst_agent)
         reply = reply['agent-data']
+        return reply
+
+    def get_agent_log(self, dst_region, dst_agent):
+
+        message_event_type = 'EXEC'
+        message_payload = dict()
+        message_payload['action'] = 'getlog'
+
+        reply = self.messaging.global_agent_msgevent(True, message_event_type, message_payload, dst_region, dst_agent)
+        #reply = reply['agent-data']
         return reply
 
 
