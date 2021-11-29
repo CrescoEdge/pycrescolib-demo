@@ -3,15 +3,15 @@ from pycrescolib.clientlib import clientlib
 
 from Testers import filerepo_deploy_single_node, filerepo_deploy_multi_node, debug_agent, \
     executor_deploy_single_node_pipeline, executor_deploy_single_node_plugin, upgrade_controller_plugin, \
-    remove_dead_plugins, remove_dead_plugins2
+    remove_dead_plugins, remove_dead_plugins2, filerepo_deploy_multi_node_tox
 
 if __name__ == "__main__":
 
     #Hostname of the agent global controler hosting the wsapi plugin
     #host = '3.230.151.127'
-    host = 'localhost'
+    #host = 'localhost'
     #host = '10.28.77.88'
-    #host = '10.28.71.118'
+    host = '10.28.71.118'
     #Port of wsapi / Default: 8282
     port = 8282
     #Service key for wsapu instance
@@ -25,7 +25,7 @@ if __name__ == "__main__":
 
         #test_case = 0 # Get a list of agents from a controller
         #test_case = 1 # Filerepo example on a single node
-        test_case = 10 # Executor example on a single node
+        test_case = 3 # Executor example on a single node
 
         #test_case 0: Get the list of agents from the agent global controller
         if test_case == 0:
@@ -93,13 +93,13 @@ if __name__ == "__main__":
         if test_case == 6:
 
             # name of agent global controller region
-            dst_region = 'global-region'
-            #dst_region = 'lab'
+            #dst_region = 'global-region'
+            dst_region = 'lab'
 
             # name of agent global controller agent
-            dst_agent = 'global-controller'
+            #dst_agent = 'global-controller'
             #dst_agent = 'controller'
-
+            dst_agent = 'MS4500'
             #location of controller jar
             jar_file_path = '/Users/cody/IdeaProjects/controller/target/controller-1.1-SNAPSHOT.jar'
 
@@ -149,6 +149,15 @@ if __name__ == "__main__":
             #dst_agent = 'agent-ad360bdf-da58-4e6a-b363-3888b1cd7f06'
 
             executor_deploy_single_node_plugin(client, dst_region, dst_agent)
+
+        if test_case == 11:
+
+            # name of agent global controller region
+            dst_region = 'lab'
+            # name of agent global controller agent
+            dst_agent = 'controller'
+
+            filerepo_deploy_multi_node_tox(client, dst_region, dst_agent)
 
         client.close()
 
