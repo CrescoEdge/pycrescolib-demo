@@ -440,7 +440,8 @@ def executor_deploy_single_node_plugin(client, dst_region, dst_agent):
         print('Global Controller Status: ' + str(client.agents.get_controller_status(dst_region, dst_agent)))
 
         #upload filerepo plugin to global controller
-        jar_file_path = get_plugin_from_git("https://github.com/CrescoEdge/executor/releases/download/1.1-SNAPSHOT/executor-1.1-SNAPSHOT.jar")
+        #jar_file_path = get_plugin_from_git("https://github.com/CrescoEdge/executor/releases/download/1.1-SNAPSHOT/executor-1.1-SNAPSHOT.jar")
+        jar_file_path = '/Users/cody/IdeaProjects/executor/target/executor-1.1-SNAPSHOT.jar'
         reply = client.globalcontroller.upload_plugin_global(jar_file_path)
         #print("upload status: " + str(reply))
         #print("plugin config: " + decompress_param(reply['configparams']))
@@ -470,7 +471,9 @@ def executor_deploy_single_node_plugin(client, dst_region, dst_agent):
         # Use base configparams (plugin_name, md5, etc.) that were extracted during plugin upload
         configparams = json.loads(decompress_param(reply['configparams']))
 
-        executor_plugin_id = client.agents.add_plugin_agent(dst_region, dst_agent, configparams, None)['pluginid']
+        reply = client.agents.add_plugin_agent(dst_region, dst_agent, configparams, None)
+        print(reply)
+        executor_plugin_id = reply['pluginid']
 
         while(client.agents.status_plugin_agent(dst_region,dst_agent,executor_plugin_id)['status_code'] != '10'):
             print('waiting on startup')
@@ -483,7 +486,7 @@ def executor_deploy_single_node_plugin(client, dst_region, dst_agent):
         message_payload['action'] = 'config_process'
         message_payload['stream_name'] = stream_name
         #adjust for windows vs linux
-        message_payload['command'] = 'ls -la'
+        message_payload['command'] = 'dir "C:\\Users\\cornerstone"'
 
         result = client.messaging.global_plugin_msgevent(True, message_event_type, message_payload, dst_region, dst_agent, executor_plugin_id)
         print(result)
@@ -497,7 +500,7 @@ def executor_deploy_single_node_plugin(client, dst_region, dst_agent):
                                                          dst_agent, executor_plugin_id)
         print('start status: ' + str(result['start_status']))
 
-        time.sleep(10)
+        time.sleep(5)
         # the process might have already ended, but this is also used to cleanup the task
         message_payload['action'] = 'end_process'
         message_payload['stream_name'] = stream_name
@@ -506,8 +509,6 @@ def executor_deploy_single_node_plugin(client, dst_region, dst_agent):
                                                          dst_agent, executor_plugin_id)
         print(result)
         print('end status: ' + str(result['end_status']))
-
-        time.sleep(10)
 
         # remove the pipeline
         client.agents.remove_plugin_agent(dst_region,dst_agent,executor_plugin_id);
@@ -678,19 +679,20 @@ def filerepo_deploy_multi_node_tox(client, dst_region, dst_agent):
     if client.agents.is_controller_active(dst_region, dst_agent):
 
         # An optional custom logger callback
-        #def logger_callback(n):
-        #    print("Custom logger callback Message = " + str(n))
+        def logger_callback(n):
+            print("Custom logger callback Message = " + str(n))
 
         # Optionally connect to the agent logger stream
-        #log = client.get_logstreamer(logger_callback)
-        #log.connect()
+        log = client.get_logstreamer(logger_callback)
+        log.connect()
         # Enable logging stream, this needs work, should be selectable via class and level
-        #log.update_config(dst_region, dst_agent)
+        log.update_config(dst_region, dst_agent)
 
         print('Global Controller Status: ' + str(client.agents.get_controller_status(dst_region, dst_agent)))
 
         #upload filerepo plugin to global controller
         jar_file_path = get_plugin_from_git("https://github.com/CrescoEdge/filerepo/releases/download/1.1-SNAPSHOT/filerepo-1.1-SNAPSHOT.jar")
+        #jar_file_path = '/Users/cody/IdeaProjects/filerepo/target/filerepo-1.1-SNAPSHOT.jar'
         reply = client.globalcontroller.upload_plugin_global(jar_file_path)
         print("upload status: " + str(reply))
         print("plugin config: " + decompress_param(reply['configparams']))
@@ -752,7 +754,8 @@ def filerepo_deploy_multi_node_tox(client, dst_region, dst_agent):
         # Add repo name, which is used in the broadcast of state
         params0["filerepo_name"] = filerepo_name
         # Add scan_dir config telling filerepo to be a sender, and sync our local repo
-        params0["scan_dir"] = 'D:\\Analyst Data\\Projects\\TESTING\\A\\Data'
+        params0["scan_dir"] = 'g:\\2021\\PMDRUG\\December'
+        params0["scan_recursive"] = 'true'
 
         node0 = dict()
         node0['type'] = 'dummy'
@@ -774,7 +777,7 @@ def filerepo_deploy_multi_node_tox(client, dst_region, dst_agent):
         # Add repo name, which is used in the broadcast of state
         params1["filerepo_name"] = filerepo_name
         # Add repo_dir config telling filerepo to recv
-        params1["repo_dir"] = '\\\\ukhcdata\\dept\\Laboratory Services\\Chandler Clinical Lab\\HLB CoreLabMT\\SPECIAL CHEMISTRY\\RawData\\MS4500\\wiff\\new'
+        params1["repo_dir"] = '\\\\ukhcdata\\dept\\Laboratory Services\\Chandler Clinical Lab\\HLB CoreLabMT\\SPECIAL CHEMISTRY\\RawData\\MS4500\\PMDRUG'
 
         node1 = dict()
         node1['type'] = 'dummy'
@@ -808,6 +811,157 @@ def filerepo_deploy_multi_node_tox(client, dst_region, dst_agent):
         # wait for sync
         for i in range(120):
             time.sleep(1)
+
+        # remove the pipeline
+        #client.globalcontroller.remove_pipeline(pipeline_id)
+
+        #while client.globalcontroller.get_pipeline_status(pipeline_id) == 10:
+        #    print('waiting for pipeline_id: ' + pipeline_id + ' to shutdown')
+        #    time.sleep(1)
+
+def filerepo_deploy_multi_node_rec(client, dst_region, dst_agent):
+
+    #wait if client is not connected
+    while not client.connected():
+        print('Waiting on client connection')
+        time.sleep(10)
+        client.connect()
+
+    if client.agents.is_controller_active(dst_region, dst_agent):
+
+        # An optional custom logger callback
+        #def logger_callback(n):
+        #    print("Custom logger callback Message = " + str(n))
+
+        # Optionally connect to the agent logger stream
+        #log = client.get_logstreamer(logger_callback)
+        #log.connect()
+        # Enable logging stream, this needs work, should be selectable via class and level
+        #log.update_config(dst_region, dst_agent)
+
+        print('Global Controller Status: ' + str(client.agents.get_controller_status(dst_region, dst_agent)))
+
+        #upload filerepo plugin to global controller
+        #jar_file_path = get_plugin_from_git("https://github.com/CrescoEdge/filerepo/releases/download/1.1-SNAPSHOT/filerepo-1.1-SNAPSHOT.jar")
+        jar_file_path = '/Users/cody/IdeaProjects/filerepo/target/filerepo-1.1-SNAPSHOT.jar'
+        reply = client.globalcontroller.upload_plugin_global(jar_file_path)
+        print("upload status: " + str(reply))
+        print("plugin config: " + decompress_param(reply['configparams']))
+
+
+        # create unique file repo name
+        filerepo_name = str(uuid.uuid1())
+        # location to sync
+        #src_repo_path = 'test_data/' + str(uuid.uuid1())
+        #src_repo_path = os.path.abspath(src_repo_path)
+        #os.makedirs(src_repo_path)
+        #print('src_repo_path: ' + src_repo_path)
+        # location to store
+        ##dst_repo_path = 'test_data/' + str(uuid.uuid1())
+        #dst_repo_path = os.path.abspath(dst_repo_path)
+        #os.makedirs(dst_repo_path)
+        #print('dst_repo_path: ' + dst_repo_path)
+
+        # create files to replicate
+        #for i in range(20):
+        #    Path(src_repo_path + '/' + str(i)).touch()
+
+        # describe the dataplane query allowing python client to listen in on filerepo communications
+        # this is not needed, but lets us see what is being communicated by the plugins
+        stream_query = "filerepo_name='" + filerepo_name + "' AND broadcast"
+        print('Client stream query ' + stream_query)
+        # create a dataplane listener for incoming data
+
+        # example of an (optional) custom callback to process incoming data from the dataframe
+        def dp_callback(n):
+            n = json.loads(n)
+            print("Custom DP callback Message = " + str(n))
+            print("Custom DP callback Message Type = " + str(type(n)))
+
+        #print('Connecting to DP')
+        #dp = client.get_dataplane(stream_query,dp_callback)
+        # connect the listener
+        #dp.connect()
+
+        # node 0 : file repo sender configuration
+        # Use base configparams (plugin_name, md5, etc.) that were extracted during plugin upload
+        configparams = json.loads(decompress_param(reply['configparams']))
+
+        cadl = dict()
+        cadl['pipeline_id'] = '0'
+        cadl['pipeline_name'] = str(uuid.uuid1())
+        cadl['nodes'] = []
+        cadl['edges'] = []
+
+        params0 = dict()
+        # Add plugin information
+        params0['pluginname'] = configparams['pluginname']
+        params0['md5'] = configparams['md5']
+        params0['version'] = configparams['version']
+        params0['persistence_code'] = '10'
+        # Add location information
+        params0["location_region"] = 'global-region'
+        params0["location_agent"] = 'myagent'
+        # Add repo name, which is used in the broadcast of state
+        params0["filerepo_name"] = filerepo_name
+        # Add scan_dir config telling filerepo to be a sender, and sync our local repo
+        params0["scan_dir"] = '/Users/cody/Downloads/test_out'
+        params0["scan_recursive"] = 'true'
+
+        node0 = dict()
+        node0['type'] = 'dummy'
+        node0['node_name'] = 'SRC Plugin'
+        node0['node_id'] = 0
+        node0['isSource'] = False
+        node0['workloadUtil'] = 0
+        node0['params'] = params0
+
+        params1 = dict()
+        # Add plugin information
+        params1['pluginname'] = configparams['pluginname']
+        params1['md5'] = configparams['md5']
+        params1['version'] = configparams['version']
+        params0['persistence_code'] = '10'
+        # Add location information
+        params1["location_region"] = 'global-region'
+        params1["location_agent"] = 'global-controller'
+        # Add repo name, which is used in the broadcast of state
+        params1["filerepo_name"] = filerepo_name
+        # Add repo_dir config telling filerepo to recv
+        params1["repo_dir"] = '/Users/cody/Downloads/test_in'
+
+        node1 = dict()
+        node1['type'] = 'dummy'
+        node1['node_name'] = 'DST Plugin'
+        node1['node_id'] = 1
+        node1['isSource'] = False
+        node1['workloadUtil'] = 0
+        node1['params'] = params1
+
+        edge0 = dict()
+        edge0['edge_id'] = 0
+        edge0['node_from'] = 0
+        edge0['node_to'] = 1
+        edge0['params'] = dict()
+
+        cadl['nodes'].append(node0)
+        cadl['nodes'].append(node1)
+        cadl['edges'].append(edge0)
+
+
+        # Push config and start sending repo plugin
+        reply = client.globalcontroller.submit_pipeline(cadl)
+        # name of pipeline remove when finished
+        print('Status of filerepo pipeline submit: ' + str(reply))
+
+        pipeline_id = reply['gpipeline_id']
+        while client.globalcontroller.get_pipeline_status(pipeline_id) != 10:
+            print('waiting for pipeline_id: ' + pipeline_id + ' to come online')
+            time.sleep(2)
+
+        # wait for sync
+        #for i in range(120):
+        #    time.sleep(1)
 
         # remove the pipeline
         #client.globalcontroller.remove_pipeline(pipeline_id)
@@ -993,8 +1147,7 @@ def filerepo_deploy_single_node(client, dst_region, dst_agent):
 
 def upgrade_controller_plugin(client, dst_region, dst_agent, jar_file_path):
 
-    print(dst_region)
-    print(dst_agent)
+    print('updating agent: region=' + dst_region + ' agent=' + dst_agent)
 
     #wait if client is not connected
     while not client.connected():
@@ -1002,8 +1155,22 @@ def upgrade_controller_plugin(client, dst_region, dst_agent, jar_file_path):
         time.sleep(10)
         client.connect()
 
-    if client.agents.is_controller_active(dst_region, dst_agent):
+    print('post connect')
+    # An optional custom logger callback
+    def logger_callback(n):
+        print("Custom logger callback Message = " + str(n))
 
+    # Optionally connect to the agent logger stream
+    log = client.get_logstreamer(logger_callback)
+    log.connect()
+    # Enable logging stream, this needs work, should be selectable via class and level
+    log.update_config(dst_region, dst_agent)
+
+    #print('Agent Status: ' + str(client.agents.get_controller_status(dst_region, dst_agent)))
+
+    #if client.agents.is_controller_active(dst_region, dst_agent):
+    if True:
+        print('Agent Controller is Active Uploading')
         # reply = client.globalcontroller.upload_plugin_global(jar_file_path)
         reply = client.agents.upload_plugin_agent(dst_region, dst_agent, jar_file_path)
         print("upload" + str(reply))
@@ -1073,8 +1240,6 @@ def remove_dead_plugins2(client, dst_region, dst_agent):
 
     if client.agents.is_controller_active(dst_region, dst_agent):
 
-
-
         # An optional custom logger callback
         def logger_callback(n):
             print("Custom logger callback Message = " + str(n))
@@ -1085,22 +1250,21 @@ def remove_dead_plugins2(client, dst_region, dst_agent):
         # Enable logging stream, this needs work, should be selectable via class and level
         #log.update_config(dst_region, dst_agent)
 
-        print('connected')
-        reply = client.agents.list_plugin_agent(dst_region,dst_agent)
-        print('connected list')
-
-        for plugin in reply:
-
-            print(plugin)
-            #if(plugin['pluginname'] == 'io.cresco.filerepo'):
-            #    print(plugin)
-            #    responce = client.agents.remove_plugin_agent(dst_region, dst_agent, plugin['plugin_id'])
-            #    print(responce)
-
         agents = client.globalcontroller.get_agent_list(dst_region)
-
+        print(agents)
         for agent in agents:
-            print(agent)
+            print(agent['name'])
+            reply = client.agents.list_plugin_agent(dst_region, agent['name'])
+            for plugin in reply:
+                # print("what")
+                print(plugin)
+                # if(plugin['pluginname'] == 'io.cresco.filerepo'):
+                #if (plugin['pluginname'] == 'io.cresco.executor'):
+                    #print(plugin)
+                    #responce = client.agents.remove_plugin_agent(dst_region, dst_agent, plugin['plugin_id'])
+                    #print(responce)
+
+        time.sleep(300)
 
 #old
 
