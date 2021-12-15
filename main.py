@@ -93,13 +93,13 @@ if __name__ == "__main__":
         if test_case == 6:
 
             # name of agent global controller region
-            #dst_region = 'global-region'
-            dst_region = 'lab'
+            dst_region = 'global-region'
+            #dst_region = 'lab'
 
             # name of agent global controller agent
-            #dst_agent = 'global-controller'
+            dst_agent = 'global-controller'
             #dst_agent = 'controller'
-            dst_agent = 'MS4500'
+            #dst_agent = 'MS4500'
             #location of controller jar
             jar_file_path = '/Users/cody/IdeaProjects/controller/target/controller-1.1-SNAPSHOT.jar'
 

@@ -440,8 +440,8 @@ def executor_deploy_single_node_plugin(client, dst_region, dst_agent):
         print('Global Controller Status: ' + str(client.agents.get_controller_status(dst_region, dst_agent)))
 
         #upload filerepo plugin to global controller
-        #jar_file_path = get_plugin_from_git("https://github.com/CrescoEdge/executor/releases/download/1.1-SNAPSHOT/executor-1.1-SNAPSHOT.jar")
-        jar_file_path = '/Users/cody/IdeaProjects/executor/target/executor-1.1-SNAPSHOT.jar'
+        jar_file_path = get_plugin_from_git("https://github.com/CrescoEdge/executor/releases/download/1.1-SNAPSHOT/executor-1.1-SNAPSHOT.jar")
+        #jar_file_path = '/Users/cody/IdeaProjects/executor/target/executor-1.1-SNAPSHOT.jar'
         reply = client.globalcontroller.upload_plugin_global(jar_file_path)
         #print("upload status: " + str(reply))
         #print("plugin config: " + decompress_param(reply['configparams']))
