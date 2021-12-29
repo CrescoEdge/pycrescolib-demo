@@ -518,6 +518,164 @@ def executor_deploy_single_node_plugin(client, dst_region, dst_agent):
             print(client.agents.status_plugin_agent(dst_region, dst_agent, executor_plugin_id)['status_code'])
             time.sleep(1)
 
+def filerepo_deploy_multi_node_plugin(client, dst_region, dst_agent):
+
+    #wait if client is not connected
+    while not client.connected():
+        print('Waiting on client connection')
+        time.sleep(10)
+        client.connect()
+
+    if client.agents.is_controller_active(dst_region, dst_agent):
+
+        # An optional custom logger callback
+        def logger_callback(n):
+            print("Custom logger callback Message = " + str(n))
+
+        # Optionally connect to the agent logger stream
+        #log = client.get_logstreamer(logger_callback)
+        #log.connect()
+        # Enable logging stream, this needs work, should be selectable via class and level
+        #log.update_config(dst_region, dst_agent)
+
+        print('Global Controller Status: ' + str(client.agents.get_controller_status(dst_region, dst_agent)))
+
+        jar_file_path = '/Users/cody/IdeaProjects/filerepo/target/filerepo-1.1-SNAPSHOT.jar'
+        reply = client.globalcontroller.upload_plugin_global(jar_file_path)
+        print("upload status: " + str(reply))
+        print("plugin config: " + decompress_param(reply['configparams']))
+
+        filerepo_name = 'autopathworker'
+        # describe the dataplane query allowing python client to listen in on filerepo communications
+        # this is not needed, but lets us see what is being communicated by the plugins
+        stream_query = "filerepo_name='" + filerepo_name + "' AND broadcast"
+        print('Client stream query ' + stream_query)
+        # create a dataplane listener for incoming data
+
+
+        # example of an (optional) custom callback to write executor output to a file
+        def dp_callback(n):
+
+            print("Custom DP callback Message = " + str(n))
+
+        dp = client.get_dataplane(stream_query,dp_callback)
+        print('Connecting to DP')
+
+        # connect the listener
+        dp.connect()
+
+        # Use base configparams (plugin_name, md5, etc.) that were extracted during plugin upload
+        configparams = json.loads(decompress_param(reply['configparams']))
+
+        # node 0 : file repo sender configuration
+        node0_dst_region = 'dp'
+        node0_dst_agent = 'node0'
+        node0_configparams = configparams.copy()
+        node0_configparams["filerepo_name"] = filerepo_name
+        node0_configparams["scan_dir"] = '/Users/cody/Downloads/node0'
+        node0_configparams["scan_recursive"] = 'false'
+        node0_configparams["enable_scan"] = 'false'
+
+        reply = client.agents.add_plugin_agent(node0_dst_region, node0_dst_agent, node0_configparams, None)
+        print(reply)
+        node0_repo_plugin_id = reply['pluginid']
+
+        while(client.agents.status_plugin_agent(node0_dst_region,node0_dst_agent,node0_repo_plugin_id)['status_code'] != '10'):
+            print('waiting on startup')
+            time.sleep(1)
+
+        # node 1 : file repo sender configuration
+        node1_dst_region = 'dp'
+        node1_dst_agent = 'node1'
+        node1_configparams = configparams.copy()
+        node1_configparams["filerepo_name"] = filerepo_name
+        node1_configparams["scan_dir"] = '/Users/cody/Downloads/node1'
+        node1_configparams["scan_recursive"] = 'false'
+        node1_configparams["enable_scan"] = 'false'
+
+        reply = client.agents.add_plugin_agent(node1_dst_region, node1_dst_agent, node1_configparams, None)
+        print(reply)
+        node1_repo_plugin_id = reply['pluginid']
+
+        while (client.agents.status_plugin_agent(node1_dst_region, node1_dst_agent, node1_repo_plugin_id)[
+                   'status_code'] != '10'):
+            print('waiting on startup')
+            time.sleep(1)
+
+        time.sleep(10)
+
+
+        message_event_type = 'EXEC'
+        message_payload = dict()
+        message_payload['action'] = 'putfilesremote'
+        # adjust for windows vs linux
+        message_payload['dst_region'] = 'dp'
+        message_payload['dst_agent'] = 'node1'
+        message_payload['dst_plugin'] = node1_repo_plugin_id
+        message_payload['repo_name'] = filerepo_name
+        file_list = ['/Users/cody/Downloads/node0/1']
+        message_payload['file_list'] = compress_param(json.dumps(file_list))
+
+        result = client.messaging.global_plugin_msgevent(True, message_event_type, message_payload, 'dp',
+                                                         'node0', node0_repo_plugin_id)
+        print(result)
+
+        '''
+        message_event_type = 'EXEC'
+        message_payload = dict()
+        message_payload['action'] = 'putfiles'
+        # adjust for windows vs linux
+        message_payload['dst_region'] = 'dp'
+        message_payload['dst_agent'] = 'node1'
+        message_payload['dst_plugin'] = node1_repo_plugin_id
+        message_payload['repo_name'] = filerepo_name
+        file_list = ['/Users/cody/Downloads/node0/1']
+        message_payload['file_list'] = compress_param(json.dumps(file_list))
+        # print("plugin config: " + decompress_param(result['repolist']))
+
+        result = client.messaging.global_plugin_msgevent(True, message_event_type, message_payload, 'dp',
+                                                         'node1', node1_repo_plugin_id)
+        '''
+
+        message_event_type = 'EXEC'
+        message_payload = dict()
+        message_payload['action'] = 'getrepofilelist'
+        message_payload['repo_name'] = filerepo_name
+
+        result = client.messaging.global_plugin_msgevent(True, message_event_type, message_payload, 'dp',
+                                                         'node1', node1_repo_plugin_id)
+        # print(result)
+        repolist = decompress_param(result['repofilelist'])
+        print(repolist)
+
+        time.sleep(10)
+
+        message_event_type = 'EXEC'
+        message_payload = dict()
+        message_payload['action'] = 'removefile'
+        message_payload['repo_name'] = filerepo_name
+        message_payload['file_name'] = '1'
+
+        result = client.messaging.global_plugin_msgevent(True, message_event_type, message_payload, 'dp',
+                                                         'node1', node1_repo_plugin_id)
+        print(result)
+
+        while(True):
+            message_event_type = 'EXEC'
+            message_payload = dict()
+            message_payload['action'] = 'getrepofilelist'
+            message_payload['repo_name'] = filerepo_name
+
+            result = client.messaging.global_plugin_msgevent(True, message_event_type, message_payload, 'dp',
+                                                             'node1', node1_repo_plugin_id)
+            #print(result)
+            repolist = decompress_param(result['repofilelist'])
+            print(repolist)
+
+            time.sleep(1000)
+
+
+
 
 def filerepo_deploy_multi_node(client, dst_region, dst_agent):
 

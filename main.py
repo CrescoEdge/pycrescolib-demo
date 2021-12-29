@@ -1,15 +1,18 @@
+import json
 
 from pycrescolib.clientlib import clientlib
 
 from Testers import filerepo_deploy_single_node, filerepo_deploy_multi_node, debug_agent, \
     executor_deploy_single_node_pipeline, executor_deploy_single_node_plugin, upgrade_controller_plugin, \
-    remove_dead_plugins, remove_dead_plugins2, filerepo_deploy_multi_node_tox, filerepo_deploy_multi_node_rec
+    remove_dead_plugins, remove_dead_plugins2, filerepo_deploy_multi_node_tox, filerepo_deploy_multi_node_rec, \
+    filerepo_deploy_multi_node_plugin
+from pycrescolib.utils import decompress_param, compress_param
 
 if __name__ == "__main__":
 
     #Hostname of the agent global controler hosting the wsapi plugin
-    host = '3.230.151.127'
-    #host = 'localhost'
+    #host = '3.230.151.127'
+    host = 'localhost'
     #host = '10.28.77.88'
     #host = '10.28.71.118'
     #Port of wsapi / Default: 8282
@@ -25,7 +28,7 @@ if __name__ == "__main__":
 
         #test_case = 0 # Get a list of agents from a controller
         #test_case = 1 # Filerepo example on a single node
-        test_case = 7 # Executor example on a single node
+        test_case = 13 # Executor example on a single node
 
         #test_case 0: Get the list of agents from the agent global controller
         if test_case == 0:
@@ -171,7 +174,17 @@ if __name__ == "__main__":
 
             filerepo_deploy_multi_node_rec(client, dst_region, dst_agent)
 
+        if test_case == 13:
+
+            # name of agent global controller region
+            dst_region = 'dp'
+            # name of agent global controller agent
+            dst_agent = 'controller'
+
+            filerepo_deploy_multi_node_plugin(client, dst_region, dst_agent)
+
         client.close()
+
 
 
 
