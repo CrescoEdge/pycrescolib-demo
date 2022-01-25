@@ -659,16 +659,15 @@ def interactive_executor_deploy_single_node_plugin(client, dst_region, dst_agent
         print('Global Controller Status: ' + str(client.agents.get_controller_status(dst_region, dst_agent)))
 
         ident_key = 'stream_name'
-        ident_id = 'stream_123456'
+        ident_id = str(uuid.uuid1())
         stream_query = "stream_name='" + ident_id + "'"
 
-        # tm.setStringProperty("stream_name", streamName);
-        # tm.setStringProperty("type", streamType);
-
         config_dp = dict()
-        config_dp['ident_id'] = ident_id
         config_dp['ident_key'] = ident_key
-        config_dp['stream_query'] = stream_query
+        config_dp['ident_id'] = ident_id
+        config_dp['io_type_key'] = 'type'
+        config_dp['output_id'] = 'output'
+        config_dp['input_id'] = 'input'
 
         # example of an (optional) custom callback to write executor output to a file
         def dp_callback(n):
