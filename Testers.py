@@ -5,7 +5,7 @@ import uuid
 import os
 import urllib.request
 
-from pycrescolib.utils import compress_param, decompress_param
+from pycrescolib.utils import compress_param, decompress_param, get_jar_info
 from pathlib import Path
 
 
@@ -517,6 +517,249 @@ def executor_deploy_single_node_plugin(client, dst_region, dst_agent):
             print('waiting on shutdown')
             print(client.agents.status_plugin_agent(dst_region, dst_agent, executor_plugin_id)['status_code'])
             time.sleep(1)
+
+def pathworker_executor_deploy_single_node_plugin(client, dst_region, dst_agent):
+
+    processmap = dict()
+
+    #wait if client is not connected
+    while not client.connected():
+        print('Waiting on client connection')
+        time.sleep(10)
+        client.connect()
+
+    if client.agents.is_controller_active(dst_region, dst_agent):
+
+        # An optional custom logger callback
+        def logger_callback(n):
+            print("Custom logger callback Message = " + str(n))
+
+        # Optionally connect to the agent logger stream
+        #log = client.get_logstreamer(logger_callback)
+        #log.connect()
+        #1.1.0.SNAPSHOT-2021-12-02T195342Z
+        #1.1.0.SNAPSHOT-2021-10-14T175814Z
+        # Enable logging stream, this needs work, should be selectable via class and level
+        #log.update_config(dst_region, dst_agent)
+
+        print('Global Controller Status: ' + str(client.agents.get_controller_status(dst_region, dst_agent)))
+
+        stream_name = str(uuid.uuid1()) #this will be used to get input back from the dataplane
+
+        # describe the dataplane query allowing python client to listen in on filerepo communications
+        # this is not needed, but lets us see what is being communicated by the plugins
+        stream_query = "stream_name='" + stream_name + "'"
+        print('Client stream query ' + stream_query)
+        # create a dataplane listener for incoming data
+
+        # example of an (optional) custom callback to write executor output to a file
+        def dp_callback(n):
+
+
+            try:
+                payload = json.loads(str(n))
+                print("json payload = " + str(payload))
+            except:
+                print("Custom DP callback Message = " + str(n))
+
+
+        print('Connecting to DP ' + stream_query)
+        dp = client.get_dataplane(stream_query, dp_callback)
+
+        # connect the listener
+        dp.connect()
+
+        # node 0 : file repo sender configuration
+        # Use base configparams (plugin_name, md5, etc.) that were extracted during plugin upload
+        #configparams = json.loads(decompress_param(reply['configparams']))
+        configparams = dict()
+        configparams['pluginname'] = 'io.cresco.executor'
+        configparams['version'] = '1.1.0.SNAPSHOT-2021-12-02T195342Z'
+        configparams['md5'] = '893deca0083ce5e301071577dccfdc9c'
+
+
+        print(configparams)
+
+        reply = client.agents.add_plugin_agent(dst_region, dst_agent, configparams, None)
+        print(reply)
+        executor_plugin_id = reply['pluginid']
+
+        while(client.agents.status_plugin_agent(dst_region,dst_agent,executor_plugin_id)['status_code'] != '10'):
+            print('waiting on startup')
+            time.sleep(1)
+
+        # this code makes use of a global message to find a specific plugin type, then send a message to that plugin
+        # send a config message to setup the config of the executor
+        message_event_type = 'CONFIG'
+        message_payload = dict()
+        message_payload['action'] = 'config_process'
+        message_payload['stream_name'] = stream_name
+        #adjust for windows vs linux
+        message_payload['command'] = 'cd /digitalpathprocessor/webapiclient; python3 client.py --test_mode=0'
+        #message_payload['command'] = 'cd /digitalpathprocessor/webapiclient; bash test.sh'
+
+        result = client.messaging.global_plugin_msgevent(True, message_event_type, message_payload, dst_region, dst_agent, executor_plugin_id)
+        print(result)
+        print('config status: ' + str(result['config_status']))
+
+        # Now send a message to start the process
+        message_payload['action'] = 'start_process'
+        message_payload['stream_name'] = stream_name
+
+        result = client.messaging.global_plugin_msgevent(True, message_event_type, message_payload, dst_region,
+                                                         dst_agent, executor_plugin_id)
+        print('start status: ' + str(result['start_status']))
+
+        # the process might have already ended, but this is also used to cleanup the task
+        message_payload['action'] = 'status_process'
+        message_payload['stream_name'] = stream_name
+
+        result = client.messaging.global_plugin_msgevent(True, message_event_type, message_payload, dst_region,
+                                                         dst_agent, executor_plugin_id)
+        print(result)
+
+        time.sleep(5)
+
+        result = client.messaging.global_plugin_msgevent(True, message_event_type, message_payload, dst_region,
+                                                         dst_agent, executor_plugin_id)
+        print(result)
+
+        time.sleep(30)
+
+        # the process might have already ended, but this is also used to cleanup the task
+        message_payload['action'] = 'end_process'
+        message_payload['stream_name'] = stream_name
+
+        result = client.messaging.global_plugin_msgevent(True, message_event_type, message_payload, dst_region,
+                                                         dst_agent, executor_plugin_id)
+        print(result)
+        print('end status: ' + str(result['end_status']))
+
+        # remove the pipeline
+        client.agents.remove_plugin_agent(dst_region,dst_agent,executor_plugin_id);
+
+        while (client.agents.status_plugin_agent(dst_region, dst_agent, executor_plugin_id)['status_code'] == '10'):
+            print('waiting on shutdown')
+            print(client.agents.status_plugin_agent(dst_region, dst_agent, executor_plugin_id)['status_code'])
+            time.sleep(1)
+
+def interactive_executor_deploy_single_node_plugin(client, dst_region, dst_agent):
+
+    processmap = dict()
+
+    #wait if client is not connected
+    while not client.connected():
+        print('Waiting on client connection')
+        time.sleep(10)
+        client.connect()
+
+    if client.agents.is_controller_active(dst_region, dst_agent):
+
+
+        print('Global Controller Status: ' + str(client.agents.get_controller_status(dst_region, dst_agent)))
+
+        ident_key = 'stream_name'
+        ident_id = 'stream_123456'
+        stream_query = "stream_name='" + ident_id + "'"
+
+        # tm.setStringProperty("stream_name", streamName);
+        # tm.setStringProperty("type", streamType);
+
+        config_dp = dict()
+        config_dp['ident_id'] = ident_id
+        config_dp['ident_key'] = ident_key
+        config_dp['stream_query'] = stream_query
+
+        # example of an (optional) custom callback to write executor output to a file
+        def dp_callback(n):
+
+
+            try:
+                payload = json.loads(str(n))
+                print("json payload = " + str(payload))
+            except:
+                print(str(n))
+
+
+        print('Connecting to DP ' + stream_query)
+        dp = client.get_dataplane(json.dumps(config_dp), dp_callback)
+
+        # connect the listener
+        dp.connect()
+
+        jar_file_path = '/Users/cody/IdeaProjects/executor/target/executor-1.1-SNAPSHOT.jar'
+        reply = client.globalcontroller.upload_plugin_global(jar_file_path)
+
+        configparams = json.loads(decompress_param(reply['configparams']))
+
+        print(configparams)
+
+        reply = client.agents.add_plugin_agent(dst_region, dst_agent, configparams, None)
+        print(reply)
+        executor_plugin_id = reply['pluginid']
+
+        while(client.agents.status_plugin_agent(dst_region,dst_agent,executor_plugin_id)['status_code'] != '10'):
+            print('waiting on startup')
+            time.sleep(1)
+
+        # this code makes use of a global message to find a specific plugin type, then send a message to that plugin
+        # send a config message to setup the config of the executor
+        message_event_type = 'CONFIG'
+        message_payload = dict()
+        message_payload['action'] = 'config_process'
+        message_payload['stream_name'] = ident_id
+        #adjust for windows vs linux
+        message_payload['command'] = '-interactive-'
+        #message_payload['command'] = 'cd /digitalpathprocessor/webapiclient; bash test.sh'
+
+        result = client.messaging.global_plugin_msgevent(True, message_event_type, message_payload, dst_region, dst_agent, executor_plugin_id)
+        print(result)
+        print('config status: ' + str(result['config_status']))
+
+        # Now send a message to start the process
+        message_payload['action'] = 'start_process'
+        message_payload['stream_name'] = ident_id
+
+        result = client.messaging.global_plugin_msgevent(True, message_event_type, message_payload, dst_region,
+                                                         dst_agent, executor_plugin_id)
+        print('start status: ' + str(result['start_status']))
+
+        # the process might have already ended, but this is also used to cleanup the task
+        message_payload['action'] = 'status_process'
+        message_payload['stream_name'] = ident_id
+
+        result = client.messaging.global_plugin_msgevent(True, message_event_type, message_payload, dst_region,
+                                                         dst_agent, executor_plugin_id)
+        print(result)
+
+        value = '1'
+        while (not value.startswith('-exit')):
+            if dp:
+                value = input('cshell# ')
+                dp.send(value)
+            else:
+                print('waiting active')
+            time.sleep(1)
+
+
+        # the process might have already ended, but this is also used to cleanup the task
+        message_payload['action'] = 'end_process'
+        message_payload['stream_name'] = ident_id
+
+        result = client.messaging.global_plugin_msgevent(True, message_event_type, message_payload, dst_region,
+                                                         dst_agent, executor_plugin_id)
+        print(result)
+        print('end status: ' + str(result['end_status']))
+
+        # remove the pipeline
+        client.agents.remove_plugin_agent(dst_region,dst_agent,executor_plugin_id);
+
+        while (client.agents.status_plugin_agent(dst_region, dst_agent, executor_plugin_id)['status_code'] == '10'):
+            print('waiting on shutdown')
+            print(client.agents.status_plugin_agent(dst_region, dst_agent, executor_plugin_id)['status_code'])
+            time.sleep(1)
+
+
 
 def filerepo_deploy_multi_node_plugin(client, dst_region, dst_agent):
 
