@@ -6,17 +6,17 @@ from Testers import filerepo_deploy_single_node, filerepo_deploy_multi_node, deb
     executor_deploy_single_node_pipeline, executor_deploy_single_node_plugin, upgrade_controller_plugin, \
     remove_dead_plugins, remove_dead_plugins2, filerepo_deploy_multi_node_tox, filerepo_deploy_multi_node_rec, \
     filerepo_deploy_multi_node_plugin, pathworker_executor_deploy_single_node_plugin, \
-    interactive_executor_deploy_single_node_plugin
+    interactive_executor_deploy_single_node_plugin, filerepo_deploy_multi_node_tox_results
 from pycrescolib.utils import decompress_param, compress_param
 
 if __name__ == "__main__":
 
     #Hostname of the agent global controler hosting the wsapi plugin
     #host = '3.230.151.127'
-    host = 'localhost'
+    #host = 'localhost'
     #host = '128.163.202.61'
     #host = '10.28.77.88'
-    #host = '10.28.71.118'
+    host = '10.28.71.118'
     #Port of wsapi / Default: 8282
     port = 8282
     #Service key for wsapu instance
@@ -30,7 +30,7 @@ if __name__ == "__main__":
 
         #test_case = 0 # Get a list of agents from a controller
         #test_case = 1 # Filerepo example on a single node
-        test_case = 15 # Executor example on a single node
+        test_case = 16 # Executor example on a single node
 
         #test_case 0: Get the list of agents from the agent global controller
         if test_case == 0:
@@ -116,15 +116,15 @@ if __name__ == "__main__":
             # dst_region = 'global-region'
 
             #dst_region = 'global-region'
-            dst_region = 'esports'
-            #dst_region = 'lab'
+            #dst_region = 'esports'
+            dst_region = 'lab'
             # name of agent global controller agent
             #dst_agent = 'global-controller'
             #dst_agent = 'agent-2f5428bc-2225-4338-af10-383fafd7a4de'
             #dst_agent = 'agent-3f4c8b87-19ad-446a-adc9-51519dee9b03'
-            dst_agent = 'gc'
+            #dst_agent = 'gc'
             #dst_agent = 'controller'
-            #dst_agent = 'MS4500'
+            dst_agent = 'MS4500'
             #client.admin.restartcontroller(dst_region, dst_agent)
 
             remove_dead_plugins2(client, dst_region, dst_agent)
@@ -200,6 +200,15 @@ if __name__ == "__main__":
             # name of agent global controller agent
             dst_agent = 'global-controller'
             interactive_executor_deploy_single_node_plugin(client, dst_region, dst_agent)
+
+        if test_case == 16:
+
+            # name of agent global controller region
+            dst_region = 'lab'
+            # name of agent global controller agent
+            dst_agent = 'controller'
+
+            filerepo_deploy_multi_node_tox_results(client, dst_region, dst_agent)
 
         client.close()
 
