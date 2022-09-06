@@ -758,6 +758,69 @@ def interactive_executor_deploy_single_node_plugin(client, dst_region, dst_agent
             print(client.agents.status_plugin_agent(dst_region, dst_agent, executor_plugin_id)['status_code'])
             time.sleep(1)
 
+def interactive_executor_deploy_single_node_plugin_pushonly(client, dst_region, dst_agent):
+
+    processmap = dict()
+
+    #wait if client is not connected
+    while not client.connected():
+        print('Waiting on client connection')
+        time.sleep(10)
+        client.connect()
+
+    if client.agents.is_controller_active(dst_region, dst_agent):
+
+
+        print('Global Controller Status: ' + str(client.agents.get_controller_status(dst_region, dst_agent)))
+
+        ident_id = str(uuid.uuid1())
+
+
+        jar_file_path = '/Users/cody/IdeaProjects/executor/target/executor-1.1-SNAPSHOT.jar'
+        reply = client.globalcontroller.upload_plugin_global(jar_file_path)
+
+        configparams = json.loads(decompress_param(reply['configparams']))
+
+        print(configparams)
+
+        reply = client.agents.add_plugin_agent(dst_region, dst_agent, configparams, None)
+        print(reply)
+        executor_plugin_id = reply['pluginid']
+
+        while(client.agents.status_plugin_agent(dst_region,dst_agent,executor_plugin_id)['status_code'] != '10'):
+            print('waiting on startup')
+            time.sleep(1)
+
+        # this code makes use of a global message to find a specific plugin type, then send a message to that plugin
+        # send a config message to setup the config of the executor
+        message_event_type = 'CONFIG'
+        message_payload = dict()
+        message_payload['action'] = 'config_process'
+        message_payload['stream_name'] = ident_id
+        #adjust for windows vs linux
+        message_payload['command'] = '-interactive-'
+
+        result = client.messaging.global_plugin_msgevent(True, message_event_type, message_payload, dst_region, dst_agent, executor_plugin_id)
+        print(result)
+        print('config status: ' + str(result['config_status']))
+
+        # Now send a message to start the process
+        message_payload['action'] = 'start_process'
+        message_payload['stream_name'] = ident_id
+
+        result = client.messaging.global_plugin_msgevent(True, message_event_type, message_payload, dst_region,
+                                                         dst_agent, executor_plugin_id)
+        print('start status: ' + str(result['start_status']))
+
+        # the process might have already ended, but this is also used to cleanup the task
+        message_payload['action'] = 'status_process'
+        message_payload['stream_name'] = ident_id
+
+        result = client.messaging.global_plugin_msgevent(True, message_event_type, message_payload, dst_region,
+                                                         dst_agent, executor_plugin_id)
+        print(result)
+
+
 
 
 def filerepo_deploy_multi_node_plugin(client, dst_region, dst_agent):
@@ -1156,7 +1219,7 @@ def filerepo_deploy_multi_node_tox(client, dst_region, dst_agent):
         # Add repo name, which is used in the broadcast of state
         params0["filerepo_name"] = filerepo_name
         # Add scan_dir config telling filerepo to be a sender, and sync our local repo
-        params0["scan_dir"] = 'g:\\2021\\PMDRUG\\December'
+        params0["scan_dir"] = 'g:\\2022\\PMDRUG'
         params0["scan_recursive"] = 'true'
 
         node0 = dict()
@@ -1534,7 +1597,6 @@ def debug_agent(client, dst_region, dst_agent):
         client.connect()
 
     if client.agents.is_controller_active(dst_region, dst_agent):
-
         # An optional custom logger callback
         def logger_callback(n):
             print("Custom logger callback Message = " + str(n))
@@ -1545,8 +1607,35 @@ def debug_agent(client, dst_region, dst_agent):
         # Enable logging stream, this needs work, should be selectable via class and level
         log.update_config(dst_region, dst_agent)
 
+        ident_key = 'stream_name'
+        ident_id = '1234'
+
+        config_dp = dict()
+        config_dp['ident_key'] = ident_key
+        config_dp['ident_id'] = ident_id
+        #config_dp['stream_query'] = ident_key + "='" + ident_id + "' and type='" + "input" + "'"
+        config_dp['io_type_key'] = 'type'
+        config_dp['output_id'] = 'output'
+        config_dp['input_id'] = 'output'
+
+        json_config = json.dumps(config_dp)
+        print(json_config)
+        # create a dataplane listener for incoming data
+
+        # example of an (optional) custom callback to write executor output to a file
+        def dp_callback(n):
+
+            print("Custom DP callback Message = " + str(n))
+
+        print('Connecting to DP')
+        dp = client.get_dataplane(json_config, dp_callback)
+        # connect the listener
+        dp.connect()
+
+
         # wait for sync
         while True:
+            dp.send("WTF")
             time.sleep(1)
 
 def filerepo_deploy_single_node(client, dst_region, dst_agent):
@@ -1818,7 +1907,7 @@ def remove_dead_plugins2(client, dst_region, dst_agent):
                     responce = client.agents.remove_plugin_agent(dst_region, dst_agent, plugin['plugin_id'])
                     print(responce)
 
-        time.sleep(300)
+        #time.sleep(300)
 
 #old
 

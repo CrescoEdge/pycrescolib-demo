@@ -1,4 +1,6 @@
-from websocket import create_connection #pip install websocket-client==0.53.0
+import ssl
+
+from websocket import create_connection
 
 class ws_interface(object):
 
@@ -8,7 +10,7 @@ class ws_interface(object):
 
     def connect(self, url):
         self.url = url
-        self.ws = create_connection(self.url)
+        self.ws = create_connection(self.url, sslopt={"cert_reqs": ssl.CERT_NONE}, header={'cresco_service_key': 'abc-8675309'})
         return self.ws.connected
 
     def connected(self):
