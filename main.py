@@ -7,21 +7,23 @@ from Testers import filerepo_deploy_single_node, filerepo_deploy_multi_node, deb
     remove_dead_plugins, remove_dead_plugins2, filerepo_deploy_multi_node_tox, filerepo_deploy_multi_node_rec, \
     filerepo_deploy_multi_node_plugin, pathworker_executor_deploy_single_node_plugin, \
     interactive_executor_deploy_single_node_plugin, filerepo_deploy_multi_node_tox_results, \
-    interactive_executor_deploy_single_node_plugin_pushonly
+    interactive_executor_deploy_single_node_plugin_pushonly, get_dp_log
 from pycrescolib.utils import decompress_param, compress_param
 
 if __name__ == "__main__":
 
     #Hostname of the agent global controler hosting the wsapi plugin
-    #host = '3.230.151.127'
     host = 'localhost'
+    #host = 'clearml.ai.uky.edu'
+    #host = '3.230.151.127'
+    #host = '128.163.202.50'
     #host = '128.163.202.61'
     #host = '10.28.77.88'
     #host = '10.28.71.118'
     #Port of wsapi / Default: 8282
     port = 8282
     #Service key for wsapu instance
-    service_key = '1234'
+    service_key = 'c988701a-5f2a-43ac-b915-156049c5d1ee'
 
     # init pycrescolib client
     client = clientlib(host, port, service_key)
@@ -31,7 +33,7 @@ if __name__ == "__main__":
 
         #test_case = 0 # Get a list of agents from a controller
         #test_case = 1 # Filerepo example on a single node
-        test_case =4 # Executor example on a single node
+        test_case = 1 # Executor example on a single node
 
         #test_case 0: Get the list of agents from the agent global controller
         if test_case == 0:
@@ -223,6 +225,12 @@ if __name__ == "__main__":
             # name of agent global controller agent
             dst_agent = 'global-controller'
             interactive_executor_deploy_single_node_plugin_pushonly(client, dst_region, dst_agent)
+
+        if test_case == 18:
+            ident_key = "stream_name"
+            ident_id = "1234"
+
+            get_dp_log(client, ident_key, ident_id)
 
         client.close()
 

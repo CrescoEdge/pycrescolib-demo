@@ -1638,6 +1638,39 @@ def debug_agent(client, dst_region, dst_agent):
             dp.send("WTF")
             time.sleep(1)
 
+def get_dp_log(client, ident_key, ident_id):
+
+    # wait if client is not connected
+    while not client.connected():
+        print('Waiting on client connection')
+        time.sleep(10)
+        client.connect()
+
+    config_dp = dict()
+    config_dp['ident_key'] = ident_key
+    config_dp['ident_id'] = ident_id
+    # config_dp['stream_query'] = ident_key + "='" + ident_id + "' and type='" + "input" + "'"
+    config_dp['io_type_key'] = 'type'
+    config_dp['output_id'] = 'output'
+    config_dp['input_id'] = 'output'
+
+    json_config = json.dumps(config_dp)
+    print(json_config)
+
+    # create a dataplane listener for incoming data
+
+    # example of an (optional) custom callback to write executor output to a file
+    def dp_callback(n):
+        print("Custom DP callback Message = " + str(n))
+
+    print('Connecting to DP')
+    dp = client.get_dataplane(json_config, dp_callback)
+    # connect the listener
+    dp.connect()
+
+    while True:
+        time.sleep(1)
+
 def filerepo_deploy_single_node(client, dst_region, dst_agent):
 
     #wait if client is not connected

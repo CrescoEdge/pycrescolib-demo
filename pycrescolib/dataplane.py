@@ -77,7 +77,7 @@ class dataplane(object):
                                              on_error=self.on_error,
                                              on_close=self.on_close,
                                              #sslopt={"cert_reqs": ssl.CERT_NONE},
-                                             header={'cresco_service_key': 'abc-8675309'}
+                                             header={'cresco_service_key': 'c988701a-5f2a-43ac-b915-156049c5d1ee'}
                                              )
             self.ws.on_open = self.on_open
             self.ws.run_forever(sslopt={"cert_reqs": ssl.CERT_NONE})

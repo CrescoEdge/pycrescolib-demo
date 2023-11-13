@@ -10,7 +10,7 @@ class ws_interface(object):
 
     def connect(self, url):
         self.url = url
-        self.ws = create_connection(self.url, sslopt={"cert_reqs": ssl.CERT_NONE}, header={'cresco_service_key': 'abc-8675309'})
+        self.ws = create_connection(self.url, sslopt={"cert_reqs": ssl.CERT_NONE}, header={'cresco_service_key': 'c988701a-5f2a-43ac-b915-156049c5d1ee'})
         return self.ws.connected
 
     def connected(self):
