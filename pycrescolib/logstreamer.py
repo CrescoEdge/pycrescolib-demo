@@ -49,6 +49,24 @@ class logstreamer(object):
 
         self.ws.send(message)
 
+    def update_config_detail(self, dst_region, dst_agent, loglevel, baseclass):
+
+        '''
+        String region_id = sst[0];
+        String agent_id = sst[1];
+        String baseclass = sst[2];
+        String loglevel = sst[3];
+
+        dst_region = "global-region"
+        dst_agent = "global-controller"
+
+        '''
+        #message = 'global-region,global-controller,io.cresco,Trace'
+        #message = dst_region + ',' + dst_agent + ',Info,default'
+        message = dst_region + ',' + dst_agent + ',' + loglevel + ',' + baseclass
+
+        self.ws.send(message)
+
     def on_error(self, ws, error):
         print(error)
 

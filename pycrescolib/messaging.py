@@ -5,6 +5,7 @@ class messaging(object):
     def __init__(self, ws_interface):
         self.ws_interface = ws_interface
 
+
     # WS functions
     def global_controller_msgevent(self, is_rpc, message_event_type, message_payload):
         message_info = dict()
@@ -206,3 +207,12 @@ class messaging(object):
             return json_incoming
         else:
             return None
+
+    def get_region(self):
+        return self.ws_interface.get_region()
+
+    def get_agent(self):
+        return self.ws_interface.get_agent()
+
+    def get_plugin(self):
+        return self.ws_interface.get_plugin()

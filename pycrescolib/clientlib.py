@@ -2,6 +2,7 @@ import traceback
 
 from pycrescolib.admin import admin
 from pycrescolib.agents import agents
+from pycrescolib.api import api
 from pycrescolib.dataplane import dataplane
 from pycrescolib.globalcontroller import globalcontroller
 from pycrescolib.logstreamer import logstreamer
@@ -28,12 +29,13 @@ class clientlib(object):
         self.messaging = messaging(self.ws_interface)
         self.agents = agents(self.messaging)
         self.admin = admin(self.messaging)
+        self.api = api(self.messaging)
         self.globalcontroller = globalcontroller(self.messaging)
 
     def connect(self):
         try:
             ws_url = 'wss://' + self.host + ':' + str(self.port) +'/api/apisocket'
-            isWSConnected = self.ws_interface.connect(ws_url)
+            isWSConnected = self.ws_interface.connect(ws_url, self.service_key)
             return isWSConnected
         except:
             traceback.print_exc()
