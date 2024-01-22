@@ -1875,7 +1875,6 @@ def aiapi_deploy_single_node(client, dst_region, dst_agent):
                 llm_region = agent_info['region']
                 llm_agent = agent_info['name']
 
-
         pipeline_id = 'resource-377a54e8-14cf-4ff7-b040-afef73f879dd'
 
         if pipeline_id is None:
