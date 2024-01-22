@@ -49,7 +49,7 @@ class logstreamer(object):
 
         self.ws.send(message)
 
-    def update_config_detail(self, dst_region, dst_agent, loglevel, baseclass):
+    def update_config_class(self, dst_region, dst_agent, loglevel, baseclass):
 
         '''
         String region_id = sst[0];

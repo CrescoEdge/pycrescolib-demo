@@ -1634,14 +1634,11 @@ def debug_agent(client, dst_region, dst_agent):
         log = client.get_logstreamer(logger_callback)
         log.connect()
         # Enable logging stream, this needs work, should be selectable via class and level
-        log.update_config(dst_region, dst_agent)
-        log.update_config_detail(dst_region, dst_agent, 'Trace', 'log4j.logger.org.apache.activemq')
-        log.update_config_detail(dst_region, dst_agent, 'Trace', 'org.apache.activemq.*')
-        log.update_config_detail(dst_region, dst_agent, 'Trace', 'log4j.category.org.apache.activemq')
-
-        log.update_config_detail(dst_region, dst_agent, 'Trace', 'log4j.logger.org.apache.activemq.spring')
-        log.update_config_detail(dst_region, dst_agent, 'Trace', 'log4j.logger.org.apache.activemq.broker')
-        log.update_config_detail(dst_region, dst_agent, 'Trace', 'org.apache.activemq.broker')
+        #log.update_config(dst_region, dst_agent)
+        log.update_config_class(dst_region, dst_agent, 'Trace', 'org.apache.activemq')
+        log.update_config_class(dst_region, dst_agent, 'Trace', 'org.apache.activemq.*')
+        log.update_config_class(dst_region, dst_agent, 'Trace', 'org.apache.activemq.spring')
+        log.update_config_class(dst_region, dst_agent, 'Trace', 'org.apache.activemq.broker')
 
 
         ident_key = 'stream_name'
@@ -1849,6 +1846,116 @@ def filerepo_deploy_single_node(client, dst_region, dst_agent):
         # wait for sync
         for i in range(20):
             time.sleep(1)
+
+        # remove the pipeline
+        client.globalcontroller.remove_pipeline(pipeline_id)
+
+        while client.globalcontroller.get_pipeline_status(pipeline_id) == 10:
+            print('waiting for pipeline_id: ' + pipeline_id + ' to shutdown')
+            time.sleep(1)
+
+def aiapi_deploy_single_node(client, dst_region, dst_agent):
+
+    #wait if client is not connected
+    while not client.connected():
+        print('Waiting on client connection')
+        time.sleep(10)
+        client.connect()
+
+    if client.agents.is_controller_active(dst_region, dst_agent):
+
+        print('Global Controller Status: ' + str(client.agents.get_controller_status(dst_region, dst_agent)))
+
+        location = 'WS-9MQ8PR3'
+        llm_region = None
+        llm_agent = None
+
+        for agent_info in client.globalcontroller.get_agent_list():
+            if agent_info['location'] == location:
+                llm_region = agent_info['region']
+                llm_agent = agent_info['name']
+
+
+        pipeline_id = 'resource-377a54e8-14cf-4ff7-b040-afef73f879dd'
+
+        if pipeline_id is None:
+
+            #pipeline_name = str(uuid.uuid1())
+            pipeline_name = "LLM FUN"
+            #upload filerepo plugin to global controller
+            jar_file_path = '/Users/cody/IdeaProjects/aiapi/target/aiapi-1.1-SNAPSHOT.jar'
+            #jar_file_path = get_plugin_from_git("https://github.com/CrescoEdge/filerepo/releases/download/1.1-SNAPSHOT/filerepo-1.1-SNAPSHOT.jar")
+
+            reply = client.globalcontroller.upload_plugin_global(jar_file_path)
+            print("upload status: " + str(reply))
+            print("plugin config: " + decompress_param(reply['configparams']))
+
+            # node 0 : file repo sender configuration
+            # Use base configparams (plugin_name, md5, etc.) that were extracted during plugin upload
+            configparams = json.loads(decompress_param(reply['configparams']))
+
+            cadl = dict()
+            cadl['pipeline_id'] = '0'
+            cadl['pipeline_name'] = pipeline_name
+            cadl['nodes'] = []
+            cadl['edges'] = []
+
+            params0 = dict()
+            # Add plugin information
+            params0['pluginname'] = configparams['pluginname']
+            params0['md5'] = configparams['md5']
+            params0['version'] = configparams['version']
+            # Add location information
+            params0["location_region"] = llm_region
+            params0["location_agent"] = llm_agent
+
+            node0 = dict()
+            node0['type'] = 'dummy'
+            node0['node_name'] = 'SRC Plugin'
+            node0['node_id'] = 0
+            node0['isSource'] = False
+            node0['workloadUtil'] = 0
+            node0['params'] = params0
+
+            cadl['nodes'].append(node0)
+
+
+            # Push config and start executor plugin
+            reply = client.globalcontroller.submit_pipeline(cadl)
+            # name of pipeline remove when finished
+            print('Status of executor pipeline submit: ' + str(reply))
+
+            pipeline_id = reply['gpipeline_id']
+            while client.globalcontroller.get_pipeline_status(pipeline_id) != 10:
+                print('waiting for pipeline_id: ' + pipeline_id + ' to come online')
+                time.sleep(2)
+
+            #get the plugin_id of the executor plugin
+            executor_plugin_id = client.globalcontroller.get_pipeline_info(pipeline_id)['nodes'][0]['node_id']
+            print('pipeline_id:', pipeline_id)
+        else:
+            print(client.globalcontroller.get_pipeline_list())
+            llm_plugin = client.globalcontroller.get_pipeline_info(pipeline_id)['nodes'][0]['node_id']
+            #client.globalcontroller.remove_pipeline(pipeline_id)
+
+
+        # this code makes use of a global message to find a specific plugin type, then send a message to that plugin
+        # send a config message to setup the config of the executor
+        message_event_type = 'EXEC'
+        message_payload = dict()
+        message_payload['action'] = 'getllm'
+        message_payload['endpoint_url'] = 'http://10.32.33.107:8080/generate'
+        #message_payload['endpoint_url'] = 'http://127.0.0.1:8080/generate'
+        message_payload['input_text'] = 'Natalia sold clips to 48 of her friends in April, and then she sold half as many clips in May. How many clips did Natalia sell altogether in April and May?'
+        message_payload['max_tokens'] = '500'
+
+        print('MESSAGE OUT:')
+        print('llm_region:', llm_region, 'llm_agent:', llm_agent, 'llm_plugin:', llm_plugin)
+        result = client.messaging.global_plugin_msgevent(True, message_event_type, message_payload, llm_region, llm_agent, llm_plugin)
+        print('DO IT:')
+        print(result)
+
+        exit()
 
         # remove the pipeline
         client.globalcontroller.remove_pipeline(pipeline_id)
