@@ -539,6 +539,7 @@ def aiapi_deploy_single_node_plugin(client, dst_region, dst_agent):
 
         print('Global Controller Status: ' + str(client.agents.get_controller_status(client.api.get_global_region(), client.api.get_global_agent())))
 
+        '''
         jar_file_path = '/Users/cody/IdeaProjects/aiapi/target/aiapi-1.1-SNAPSHOT.jar'
         #jar_file_path = '/Users/cody/IdeaProjects/executor/target/executor-1.1-SNAPSHOT.jar'
         reply = client.globalcontroller.upload_plugin_global(jar_file_path)
@@ -560,8 +561,11 @@ def aiapi_deploy_single_node_plugin(client, dst_region, dst_agent):
             time.sleep(1)
 
         print('do someething with it')
+        '''
 
-        print(dst_region, dst_agent, dst_plugin)
+        dst_region = 'global-region'
+        dst_agent = 'inference_server'
+        dst_plugin = 'plugin-b6255f1f-be67-403d-baa9-d404c468eead'
 
         message_event_type = 'EXEC'
         message_payload = dict()
@@ -579,14 +583,14 @@ def aiapi_deploy_single_node_plugin(client, dst_region, dst_agent):
         # reply = json.loads(decompress_param(reply['plugin_status']))
 
         # remove the pipeline
-
+        '''
         client.agents.remove_plugin_agent(dst_region, dst_agent, dst_plugin);
 
         while (client.agents.status_plugin_agent(dst_region, dst_agent, dst_plugin)['status_code'] == '10'):
             print('waiting on shutdown')
             print(client.agents.status_plugin_agent(dst_region, dst_agent, dst_plugin)['status_code'])
             time.sleep(1)
-
+        '''
     else:
         print('BLAM')
 
