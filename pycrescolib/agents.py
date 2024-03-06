@@ -26,6 +26,7 @@ class agents(object):
         message_payload['action'] = 'getcontrollerstatus'
 
         reply = self.messaging.global_agent_msgevent(True, message_event_type, message_payload, dst_region, dst_agent)
+        print(reply)
         reply = reply['controller_status']
 
         return reply

@@ -517,6 +517,78 @@ def executor_deploy_single_node_plugin(client, dst_region, dst_agent):
             print('waiting on shutdown')
             print(client.agents.status_plugin_agent(dst_region, dst_agent, executor_plugin_id)['status_code'])
             time.sleep(1)
+def aiapi_deploy_single_node_plugin(client, dst_region, dst_agent):
+
+    #wait if client is not connected
+    while not client.connected():
+        print('Waiting on client connection')
+        time.sleep(10)
+        client.connect()
+
+    if client.agents.is_controller_active(client.api.get_global_region(), client.api.get_global_agent()):
+
+        # An optional custom logger callback
+        def logger_callback(n):
+            print("Custom logger callback Message = " + str(n))
+
+        # Optionally connect to the agent logger stream
+        #log = client.get_logstreamer(logger_callback)
+        #log.connect()
+        # Enable logging stream, this needs work, should be selectable via class and level
+        #log.update_config(dst_region, dst_agent)
+
+        print('Global Controller Status: ' + str(client.agents.get_controller_status(client.api.get_global_region(), client.api.get_global_agent())))
+
+        jar_file_path = '/Users/cody/IdeaProjects/aiapi/target/aiapi-1.1-SNAPSHOT.jar'
+        #jar_file_path = '/Users/cody/IdeaProjects/executor/target/executor-1.1-SNAPSHOT.jar'
+        reply = client.globalcontroller.upload_plugin_global(jar_file_path)
+        #print("upload status: " + str(reply))
+        #print("plugin config: " + decompress_param(reply['configparams']))
+
+
+        # node 0 : file repo sender configuration
+        # Use base configparams (plugin_name, md5, etc.) that were extracted during plugin upload
+        configparams = json.loads(decompress_param(reply['configparams']))
+
+        reply = client.agents.add_plugin_agent(dst_region, dst_agent, configparams, None)
+
+        dst_plugin = reply['pluginid']
+
+
+        while(client.agents.status_plugin_agent(dst_region, dst_agent, dst_plugin)['status_code'] != '10'):
+            print('waiting on startup')
+            time.sleep(1)
+
+        print('do someething with it')
+
+        print(dst_region, dst_agent, dst_plugin)
+
+        message_event_type = 'EXEC'
+        message_payload = dict()
+        message_payload['action'] = 'getllm'
+        message_payload['endpoint_url'] = 'http://10.10.10.55:8080'
+        message_payload['input_text'] = 'Who does #2 work for?'
+        message_payload['max_tokens'] = 512
+
+        reply = client.messaging.global_plugin_msgevent(True, message_event_type, message_payload, dst_region, dst_agent, dst_plugin)
+
+        print(reply)
+
+        #print('Output text:', reply['output_text'])
+        # print(reply)
+        # reply = json.loads(decompress_param(reply['plugin_status']))
+
+        # remove the pipeline
+
+        client.agents.remove_plugin_agent(dst_region, dst_agent, dst_plugin);
+
+        while (client.agents.status_plugin_agent(dst_region, dst_agent, dst_plugin)['status_code'] == '10'):
+            print('waiting on shutdown')
+            print(client.agents.status_plugin_agent(dst_region, dst_agent, dst_plugin)['status_code'])
+            time.sleep(1)
+
+    else:
+        print('BLAM')
 
 def pathworker_executor_deploy_single_node_plugin(client, dst_region, dst_agent):
 
