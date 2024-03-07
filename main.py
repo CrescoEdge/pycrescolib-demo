@@ -232,7 +232,6 @@ if __name__ == "__main__":
             dst_agent = 'inference_server'
             #dst_agent = 'global-controller'
 
-            print('trying ')
             aiapi_deploy_single_node_plugin(client, dst_region, dst_agent)
 
 
