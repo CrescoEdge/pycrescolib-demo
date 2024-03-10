@@ -49,7 +49,7 @@ class dataplane(object):
 
     def on_close(self, ws, close_code, close_desc):
 
-        print('closed dp_id: ' + str(self.dp_id))
+        #print('closed dp_id: ' + str(self.dp_id))
 
         if (close_code is not None) and (close_desc is not None):
             print('dp closed: code:' + str(close_code) + ' desc: ' + str(close_desc))

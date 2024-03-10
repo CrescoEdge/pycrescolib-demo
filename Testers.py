@@ -747,7 +747,7 @@ def interactive_executor_deploy_single_node_plugin(client, dst_region, dst_agent
 
         ident_key = 'stream_name'
         ident_id = str(uuid.uuid1())
-        stream_query = "stream_name='" + ident_id + "'"
+        #stream_query = "stream_name='" + ident_id + "'"
 
         config_dp = dict()
         config_dp['ident_key'] = ident_key
@@ -767,11 +767,12 @@ def interactive_executor_deploy_single_node_plugin(client, dst_region, dst_agent
                 print(str(n))
 
 
-        print('Connecting to DP ' + stream_query)
+        print('Connecting to DP 0' + json.dumps(config_dp))
         dp = client.get_dataplane(json.dumps(config_dp), dp_callback)
-
+        print('Connecting to DP 1' + json.dumps(config_dp))
         # connect the listener
         dp.connect()
+        print('Connecting to DP 2' + json.dumps(config_dp))
 
         jar_file_path = '/Users/cody/IdeaProjects/executor/target/executor-1.1-SNAPSHOT.jar'
         reply = client.globalcontroller.upload_plugin_global(jar_file_path)

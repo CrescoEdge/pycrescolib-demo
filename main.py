@@ -32,7 +32,7 @@ if __name__ == "__main__":
 
         #test_case = 0 # Get a list of agents from a controller
         #test_case = 1 # Filerepo example on a single node
-        test_case =18 # Executor example on a single node
+        test_case =15 # Executor example on a single node
 
         #test_case 0: Get the list of agents from the agent global controller
         if test_case == 0:
@@ -203,9 +203,10 @@ if __name__ == "__main__":
 
         if test_case == 15:
             # name of agent global controller region
-            dst_region = 'global-region'
+            dst_region = client.api.get_global_region()
             # name of agent global controller agent
-            dst_agent = 'global-controller'
+            dst_agent = client.api.get_global_agent()
+
             interactive_executor_deploy_single_node_plugin(client, dst_region, dst_agent)
 
         if test_case == 16:
