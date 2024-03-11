@@ -527,22 +527,13 @@ def aiapi_deploy_single_node_plugin(client, dst_region, dst_agent):
 
     if client.agents.is_controller_active(client.api.get_global_region(), client.api.get_global_agent()):
 
-        # An optional custom logger callback
-        def logger_callback(n):
-            print("Custom logger callback Message = " + str(n))
-
-        # Optionally connect to the agent logger stream
-        #log = client.get_logstreamer(logger_callback)
-        #log.connect()
-        # Enable logging stream, this needs work, should be selectable via class and level
-        #log.update_config(dst_region, dst_agent)
-
         print('Global Controller Status: ' + str(client.agents.get_controller_status(client.api.get_global_region(), client.api.get_global_agent())))
 
 
         jar_file_path = '/Users/cody/IdeaProjects/aiapi/target/aiapi-1.1-SNAPSHOT.jar'
         #jar_file_path = '/Users/cody/IdeaProjects/executor/target/executor-1.1-SNAPSHOT.jar'
         reply = client.globalcontroller.upload_plugin_global(jar_file_path)
+        print('upload plugin: ', reply)
         #print("upload status: " + str(reply))
         #print("plugin config: " + decompress_param(reply['configparams']))
 
@@ -551,7 +542,10 @@ def aiapi_deploy_single_node_plugin(client, dst_region, dst_agent):
         # Use base configparams (plugin_name, md5, etc.) that were extracted during plugin upload
         configparams = json.loads(decompress_param(reply['configparams']))
 
+        print('Adding plugin to agent')
         reply = client.agents.add_plugin_agent(dst_region, dst_agent, configparams, None)
+
+        print("Added plugin to agent: ", reply)
 
         dst_plugin = reply['pluginid']
 
@@ -559,6 +553,7 @@ def aiapi_deploy_single_node_plugin(client, dst_region, dst_agent):
         while(client.agents.status_plugin_agent(dst_region, dst_agent, dst_plugin)['status_code'] != '10'):
             print('waiting on startup')
             time.sleep(1)
+
         print('plugin deployed')
         time.sleep(2)
         print('waiting')
@@ -566,14 +561,35 @@ def aiapi_deploy_single_node_plugin(client, dst_region, dst_agent):
         #dst_region = 'global-region'
         #dst_agent = 'inference_server'
         #dst_plugin = 'plugin-b6255f1f-be67-403d-baa9-d404c468eead'
+        message_event_type = 'EXEC'
+        message_payload = dict()
+        message_payload['action'] = 'getllmadapter'
+        message_payload['s3_access_key'] = 'rHUYeAk58Ilhg6iUEFtr'
+        message_payload['s3_secret_key'] = 'IVimdW7BIQLq9PLyVpXzZUq8zS4nLfrsoiZSJanu'
+        message_payload['s3_url'] = 'http://localhost:9000'
+        message_payload['s3_bucket'] = 'llmadapters'
+        message_payload['s3_key'] = 'data/llm_factory_trainer/trainer_template_v0.efe93f27cbc844d78132a3994b6fe6a8/artifacts/adapter/custom_adapter.zip'
+        message_payload['local_path'] = 'efe93f27cbc844d78132a3994b6fe6a8.zip'
 
+        '''
+        paramList.add("s3_access_key");
+        paramList.add("s3_secret_key");
+        paramList.add("s3_url");
+        paramList.add("s3_bucket");
+        paramList.add("s3_key");
+        paramList.add("local_path");
+        '''
+
+        '''
         message_event_type = 'EXEC'
         message_payload = dict()
         message_payload['action'] = 'getllmgenerate'
+        #message_payload['endpoint_url'] = 'http://10.10.10.55:8080'
         message_payload['endpoint_url'] = 'http://10.10.10.55:8080'
         message_payload['endpoint_payload'] = '{\"inputs\": "[INST] Natalia sold clips to 48 of her friends in April, and ' \
                                               'then she sold half as many clips in May. How many clips did Natalia sell altogether ' \
                                               'in April and May? [/INST]\",\"parameters\": {\"max_new_tokens\": 64}}'
+        '''
         '''
         message_event_type = 'EXEC'
         message_payload = dict()
@@ -583,8 +599,8 @@ def aiapi_deploy_single_node_plugin(client, dst_region, dst_agent):
         message_payload['max_tokens'] = 512
         '''
 
-        print(dst_region, dst_agent, dst_plugin)
-        print(message_payload)
+        print('location:', dst_region, dst_agent, dst_plugin)
+        print('payload:', message_payload)
         reply = client.messaging.global_plugin_msgevent(True, message_event_type, message_payload, dst_region, dst_agent, dst_plugin)
 
         print("RESPONSE:", reply)

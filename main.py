@@ -14,8 +14,8 @@ if __name__ == "__main__":
 
     #Hostname of the agent global controler hosting the wsapi plugin
     #host = '3.230.151.127'
-    #host = 'localhost'
-    host = '10.10.5.76'
+    host = 'localhost'
+    #host = '10.10.5.76'
     #host = '128.163.202.61'
     #host = '10.28.77.88'
     #host = '10.28.71.118'
@@ -32,7 +32,7 @@ if __name__ == "__main__":
 
         #test_case = 0 # Get a list of agents from a controller
         #test_case = 1 # Filerepo example on a single node
-        test_case =15 # Executor example on a single node
+        test_case =18 # Executor example on a single node
 
         #test_case 0: Get the list of agents from the agent global controller
         if test_case == 0:
@@ -229,9 +229,12 @@ if __name__ == "__main__":
         if test_case == 18:
 
             # name of agent global controller region
-            dst_region = 'global-region'
-            dst_agent = 'inference_server'
+            #dst_region = 'global-region'
+            #dst_agent = 'inference_server'
             #dst_agent = 'global-controller'
+            dst_region = client.api.get_global_region()
+            # name of agent global controller agent
+            dst_agent = client.api.get_global_agent()
 
             aiapi_deploy_single_node_plugin(client, dst_region, dst_agent)
 
