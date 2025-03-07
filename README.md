@@ -342,7 +342,7 @@ if client.agents.is_controller_active(dst_region, dst_agent):
     os.makedirs(src_repo_path)
     os.makedirs(dst_repo_path)
     
-    # Create test files
+    # Create pycrescolib_test files
     for i in range(20):
         Path(src_repo_path + '/' + str(i)).touch()
     
