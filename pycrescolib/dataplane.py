@@ -1,5 +1,5 @@
 """
-Dataplane implementation for Cresco communications.
+Dataplane implementation for Cresco communications with binary data support.
 """
 import concurrent
 import ssl
@@ -7,7 +7,8 @@ import json
 import time
 import logging
 import asyncio
-from typing import Dict, Any, Optional, Callable, Union
+import base64
+from typing import Dict, Any, Optional, Callable, Union, BinaryIO
 import websockets
 import backoff
 from contextlib import asynccontextmanager
@@ -19,14 +20,16 @@ logger = logging.getLogger(__name__)
 class dataplane:
     """Dataplane class for streaming data in Cresco."""
 
-    def __init__(self, host: str, port: int, stream_name: str, service_key: str, callback: Optional[Callable] = None):
+    def __init__(self, host: str, port: int, stream_name: str, service_key: str, callback: Optional[Callable] = None,
+                 binary_callback: Optional[Callable] = None):
         self.host = host
         self.port = port
         self.stream_name = stream_name
         self.ws = None
         self.isActive = False
         self.message_count = 0
-        self.callback = callback
+        self.callback = callback  # For text messages
+        self.binary_callback = binary_callback  # For binary messages
         self._task = None
         self._running = False
         self._reconnect_task = None
@@ -43,33 +46,55 @@ class dataplane:
         return self.isActive
 
     async def _message_handler(self):
-        """Handle incoming messages."""
+        """Handle incoming messages, with support for both text and binary."""
         while self._running:
             try:
                 if self.ws:
                     try:
                         message = await self.ws.recv()
-                        logger.debug(f"Raw dataplane message received: {message[:100]}...")
+                        logger.debug(f"Raw dataplane message received, type: {type(message)}")
 
                         # Handle activation message
-                        if self.message_count == 0:  # Change to match logstreamer's approach
+                        if self.message_count == 0:
                             try:
-                                json_incoming = json.loads(message)
-                                if int(json_incoming.get('status_code', 0)) == 10:
-                                    self.isActive = True
-                                    logger.info(f"Dataplane {self.stream_name} activated")
+                                # Activation message should be text/JSON
+                                if isinstance(message, str):
+                                    json_incoming = json.loads(message)
+                                    if int(json_incoming.get('status_code', 0)) == 10:
+                                        self.isActive = True
+                                        logger.info(f"Dataplane {self.stream_name} activated")
+                                else:
+                                    # Not expected to get binary for activation
+                                    logger.warning("Received binary data for activation message")
                             except json.JSONDecodeError:
-                                logger.error(f"Invalid JSON in activation message: {message}")
+                                logger.error(f"Invalid JSON in activation message")
                         # Handle regular messages
                         else:
-                            if self.callback:
-                                # Call the callback directly for better debugging
-                                try:
-                                    await asyncio.get_event_loop().run_in_executor(None, self.callback, message)
-                                except Exception as e:
-                                    logger.error(f"Error in callback: {e}")
+                            if isinstance(message, bytes):
+                                # Binary message
+                                if self.binary_callback:
+                                    try:
+                                        await asyncio.get_event_loop().run_in_executor(None, self.binary_callback, message)
+                                    except Exception as e:
+                                        logger.error(f"Error in binary callback: {e}")
+                                elif self.callback:
+                                    # Fall back to the regular callback if binary_callback is not set
+                                    logger.warning("Received binary data but no binary_callback set, using regular callback")
+                                    try:
+                                        await asyncio.get_event_loop().run_in_executor(None, self.callback, message)
+                                    except Exception as e:
+                                        logger.error(f"Error in callback with binary data: {e}")
+                                else:
+                                    logger.info(f"Binary dataplane message received (no callback): {len(message)} bytes")
                             else:
-                                logger.info(f"Dataplane message (no callback): {message[:200]}...")
+                                # Text message
+                                if self.callback:
+                                    try:
+                                        await asyncio.get_event_loop().run_in_executor(None, self.callback, message)
+                                    except Exception as e:
+                                        logger.error(f"Error in callback: {e}")
+                                else:
+                                    logger.info(f"Dataplane message (no callback): {message[:200]}...")
 
                         self.message_count += 1
                     except websockets.ConnectionClosed:
@@ -182,11 +207,11 @@ class dataplane:
         while not self.isActive and self._running:
             await asyncio.sleep(0.1)
 
-    async def send_async(self, data: str):
-        """Send data asynchronously.
+    async def send_async(self, data: Union[str, bytes]):
+        """Send data asynchronously, supporting both text and binary.
 
         Args:
-            data: Data to send
+            data: Data to send, can be string or bytes
         """
         if not self.isActive:
             logger.warning("Dataplane not active, cannot send data")
@@ -195,16 +220,19 @@ class dataplane:
         try:
             async with self._lock:
                 await self.ws.send(data)
-                logger.debug(f"Sent data to dataplane: {data}")
+                if isinstance(data, bytes):
+                    logger.debug(f"Sent binary data to dataplane: {len(data)} bytes")
+                else:
+                    logger.debug(f"Sent text data to dataplane: {data[:100]}...")
         except Exception as e:
             logger.error(f"Error sending data to dataplane: {e}")
             self.isActive = False
 
-    def send(self, data: str):
-        """Send data synchronously.
+    def send(self, data: Union[str, bytes]):
+        """Send data synchronously, supporting both text and binary.
 
         Args:
-            data: Data to send
+            data: Data to send, can be string or bytes
         """
         if not self.isActive:
             logger.warning("Dataplane not active, cannot send data")
@@ -219,6 +247,41 @@ class dataplane:
         except Exception as e:
             logger.error(f"Error sending data to dataplane: {e}")
             self.isActive = False
+
+    async def send_binary_async(self, data: bytes):
+        """Send binary data asynchronously.
+
+        Args:
+            data: Binary data to send
+        """
+        if not isinstance(data, bytes):
+            raise TypeError("Data must be bytes for send_binary_async")
+        await self.send_async(data)
+
+    def send_binary(self, data: bytes):
+        """Send binary data synchronously.
+
+        Args:
+            data: Binary data to send
+        """
+        if not isinstance(data, bytes):
+            raise TypeError("Data must be bytes for send_binary")
+        self.send(data)
+
+    def send_binary_file(self, file_path: str):
+        """Read and send a binary file.
+
+        Args:
+            file_path: Path to the binary file
+        """
+        try:
+            with open(file_path, 'rb') as f:
+                data = f.read()
+            self.send_binary(data)
+            logger.info(f"Sent binary file {file_path} ({len(data)} bytes)")
+        except Exception as e:
+            logger.error(f"Error sending binary file {file_path}: {e}")
+            raise
 
     def close(self):
         """Close the dataplane connection with proper task cleanup."""

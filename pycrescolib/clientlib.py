@@ -1,6 +1,5 @@
 """
-Client library for Cresco framework interaction.
-Improved to ensure proper WebSocket initialization and event loop management.
+Client library for Cresco framework interaction with improved resource management.
 """
 import ssl
 import logging
@@ -24,44 +23,6 @@ from .wc_interface import ws_interface
 logger = logging.getLogger(__name__)
 
 
-# Configure logging for the library
-def configure_logging(level=logging.INFO):
-    """Configure logging for the library.
-
-    Args:
-        level: Logging level
-    """
-    logger = logging.getLogger('pycrescolib')
-    logger.setLevel(level)
-
-    # Add console handler if none exists
-    if not logger.handlers:
-        handler = logging.StreamHandler()
-        formatter = logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s')
-        handler.setFormatter(formatter)
-        logger.addHandler(handler)
-
-
-# SSL Configuration helper
-def setup_ssl_context(verify=False):
-    """Setup SSL context.
-
-    Args:
-        verify: Whether to verify SSL certificates
-
-    Returns:
-        Configured SSL context
-    """
-    context = ssl.create_default_context()
-
-    if not verify:
-        context.check_hostname = False
-        context.verify_mode = ssl.CERT_NONE
-        logger.warning("SSL certificate verification disabled")
-
-    return context
-
-
 class clientlib:
     """Client library for interacting with Cresco framework."""
 
@@ -79,8 +40,10 @@ class clientlib:
         self.service_key = service_key
         self.verify_ssl = verify_ssl
         self._lock = threading.RLock()  # Reentrant lock for thread safety
-        self._dataplanes = []  # Track active dataplanes
-        self._logstreamers = []  # Track active logstreamers
+
+        # Use dictionaries to track resources with identifiers
+        self._dataplanes = {}  # stream_name -> dataplane instance
+        self._logstreamers = {}  # optional_name -> logstreamer instance
 
         # Configure SSL handling globally if needed
         if not verify_ssl:
@@ -155,48 +118,160 @@ class clientlib:
             logger.error(f"Error checking connection status: {e}")
             return False
 
+    def get_dataplane(self, stream_name: str, callback: Optional[Callable] = None,
+                      binary_callback: Optional[Callable] = None) -> dataplane:
+        """Create or retrieve a dataplane instance for streaming data.
+
+        Args:
+            stream_name: Name of the stream (acts as an identifier)
+            callback: Function for text messages
+            binary_callback: Function for binary messages
+
+        Returns:
+            Dataplane instance
+        """
+        with self._lock:
+            # Check if we already have a dataplane with this stream name
+            if stream_name in self._dataplanes:
+                logger.info(f"Returning existing dataplane for stream: {stream_name}")
+                return self._dataplanes[stream_name]
+
+            # Create new dataplane
+            dp = dataplane(self.host, self.port, stream_name, self.service_key,
+                           callback, binary_callback)
+            logger.debug(f"Created dataplane for stream: {stream_name}")
+
+            # Store with stream name as key
+            self._dataplanes[stream_name] = dp
+            return dp
+
+    def close_dataplane(self, stream_name: str) -> bool:
+        """Close and remove a specific dataplane by stream name.
+
+        Args:
+            stream_name: Name of the stream to close
+
+        Returns:
+            True if successfully closed, False if not found or error
+        """
+        with self._lock:
+            # Check if the dataplane exists
+            if stream_name not in self._dataplanes:
+                logger.warning(f"Dataplane for stream '{stream_name}' not found")
+                return False
+
+            try:
+                # Close the dataplane
+                self._dataplanes[stream_name].close()
+                # Remove from tracking dictionary
+                del self._dataplanes[stream_name]
+                logger.info(f"Closed and removed dataplane for stream: {stream_name}")
+                return True
+            except Exception as e:
+                logger.error(f"Error closing dataplane '{stream_name}': {e}")
+                return False
+
+    def get_logstreamer(self, name: Optional[str] = None, callback: Optional[Callable] = None) -> logstreamer:
+        """Create or retrieve a logstreamer instance.
+
+        Args:
+            name: Optional name to identify this logstreamer
+            callback: Optional callback for message handling
+
+        Returns:
+            Logstreamer instance
+        """
+        with self._lock:
+            # Generate a default name if none provided
+            if name is None:
+                name = f"logstreamer_{len(self._logstreamers)}"
+
+            # Check if we already have a logstreamer with this name
+            if name in self._logstreamers:
+                logger.info(f"Returning existing logstreamer: {name}")
+                return self._logstreamers[name]
+
+            # Create new logstreamer
+            ls = logstreamer(self.host, self.port, self.service_key, callback)
+            logger.debug(f"Created logstreamer: {name}")
+
+            # Store with name as key
+            self._logstreamers[name] = ls
+            return ls
+
+    def close_logstreamer(self, name: str) -> bool:
+        """Close and remove a specific logstreamer by name.
+
+        Args:
+            name: Name of the logstreamer to close
+
+        Returns:
+            True if successfully closed, False if not found or error
+        """
+        with self._lock:
+            # Check if the logstreamer exists
+            if name not in self._logstreamers:
+                logger.warning(f"Logstreamer '{name}' not found")
+                return False
+
+            try:
+                # Close the logstreamer
+                self._logstreamers[name].close()
+                # Remove from tracking dictionary
+                del self._logstreamers[name]
+                logger.info(f"Closed and removed logstreamer: {name}")
+                return True
+            except Exception as e:
+                logger.error(f"Error closing logstreamer '{name}': {e}")
+                return False
+
     def close(self):
-        """Close the WebSocket connection and clean up resources."""
+        """Close the WebSocket connection and clean up all resources."""
         logger.info("Closing clientlib connection and resources")
 
-        # Close all tracked dataplanes
-        for dp in self._dataplanes:
-            try:
-                dp.close()
-            except Exception as e:
-                logger.error(f"Error closing dataplane: {e}")
-        self._dataplanes = []
+        with self._lock:
+            # Close all tracked dataplanes
+            for stream_name, dp in list(self._dataplanes.items()):
+                try:
+                    dp.close()
+                    logger.debug(f"Closed dataplane: {stream_name}")
+                except Exception as e:
+                    logger.error(f"Error closing dataplane '{stream_name}': {e}")
+            self._dataplanes.clear()
 
-        # Close all tracked logstreamers
-        for ls in self._logstreamers:
-            try:
-                ls.close()
-            except Exception as e:
-                logger.error(f"Error closing logstreamer: {e}")
-        self._logstreamers = []
+            # Close all tracked logstreamers
+            for name, ls in list(self._logstreamers.items()):
+                try:
+                    ls.close()
+                    logger.debug(f"Closed logstreamer: {name}")
+                except Exception as e:
+                    logger.error(f"Error closing logstreamer '{name}': {e}")
+            self._logstreamers.clear()
 
-        # Close WebSocket interface
-        if self.ws_interface:
-            try:
-                self.ws_interface.close()
-            except Exception as e:
-                logger.error(f"Error closing WebSocket interface: {e}")
+            # Close WebSocket interface
+            if self.ws_interface:
+                try:
+                    self.ws_interface.close()
+                except Exception as e:
+                    logger.error(f"Error closing WebSocket interface: {e}")
 
-    def get_dataplane(self, stream_name: str, callback: Optional[Callable] = None) -> dataplane:
-        # Create dataplane with the same service key used by clientlib
-        dp = dataplane(self.host, self.port, stream_name, self.service_key, callback)
-        logger.debug(f"Created dataplane for stream: {stream_name}")
-        # Track for cleanup
-        self._dataplanes.append(dp)
-        return dp
+    def get_active_dataplanes(self):
+        """Get a list of active dataplane stream names.
 
-    def get_logstreamer(self, callback: Optional[Callable] = None) -> logstreamer:
-        # Create logstreamer with the same service key used by clientlib
-        ls = logstreamer(self.host, self.port, self.service_key, callback)
-        logger.debug("Created logstreamer")
-        # Track for cleanup
-        self._logstreamers.append(ls)
-        return ls
+        Returns:
+            List of stream names
+        """
+        with self._lock:
+            return list(self._dataplanes.keys())
+
+    def get_active_logstreamers(self):
+        """Get a list of active logstreamer names.
+
+        Returns:
+            List of logstreamer names
+        """
+        with self._lock:
+            return list(self._logstreamers.keys())
 
     @contextmanager
     def connection(self):
