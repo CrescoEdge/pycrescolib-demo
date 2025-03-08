@@ -3,12 +3,9 @@ Base classes for the Cresco library to reduce code duplication.
 """
 import json
 import logging
-import asyncio
-import ssl
-from typing import Dict, Any, Optional, Union, Callable
-import backoff
+from typing import Dict, Any, Optional
 
-from .utils import compress_param, decompress_param
+import backoff
 
 # Set up logging
 logger = logging.getLogger(__name__)
