@@ -2,8 +2,8 @@ import json
 import logging
 import time
 
-from pycrescolib.clientlib import clientlib
 from dataplane_test import DataplaneTest
+from pycrescolib.clientlib import clientlib
 
 # Setup logging
 logging.basicConfig(level=logging.INFO)
@@ -58,10 +58,8 @@ if client.connect():
             binary_callback
         )
         dp.connect()
-        while True:
-            time.sleep(1)
 
-        '''
+
         # Create and run DataplaneTest with the connected client
         dataplane_tester = DataplaneTest(client, logger)
         success = dataplane_tester.run_test(num_messages=100, delay=0.1)
@@ -70,7 +68,10 @@ if client.connect():
             logger.info("Dataplane test completed successfully")
         else:
             logger.error("Dataplane test failed")
-        '''
+
+        while True:
+            time.sleep(1)
+
 
     except Exception as e:
         logger.error(f"Error: {e}")
