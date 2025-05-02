@@ -2,7 +2,6 @@ import json
 import time
 import logging
 
-
 class DataplaneTest:
     def __init__(self, client, logger=None):
         """

@@ -1,9 +1,11 @@
 import json
 import logging
 import time
+import uuid
 
 from dataplane_test import DataplaneTest
 from pycrescolib.clientlib import clientlib
+from stunnel_test import STunnelTest
 
 # Setup logging
 logging.basicConfig(level=logging.INFO)
@@ -42,6 +44,7 @@ service_key = 'a6f7f889-2500-46d3-9484-5b6499186456'
 # Connect to Cresco
 client = clientlib(host, port, service_key)
 if client.connect():
+
     try:
         logger.info(f"Connected to Cresco at {host}:{port}")
 
@@ -50,6 +53,11 @@ if client.connect():
         global_agent = client.api.get_global_agent()
         logger.info(f"Global region: {global_region}, Global agent: {global_agent}")
 
+        stunnel_tester = STunnelTest(client, logger)
+        stunnel_id_0 = str(uuid.uuid1())
+        stunnel_tester.create_tunnel(stunnel_id_0, global_region, global_agent, '2222', global_region, global_agent, '192.168.4.249', '2221', '8192')
+
+        '''
         stream_name = "stunnel_id is NOT NULL and type is NOT NULL"
         # Create dataplane with callbacks
         dp = client.get_dataplane(
@@ -71,7 +79,8 @@ if client.connect():
 
         while True:
             time.sleep(1)
-
+        
+        '''
 
     except Exception as e:
         logger.error(f"Error: {e}")

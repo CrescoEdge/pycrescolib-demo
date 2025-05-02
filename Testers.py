@@ -58,7 +58,6 @@ def get_plugin_from_git(src_url: str, force: bool = False) -> str:
 
     return dst_path
 
-
 def filerepo_deploy_multi_node_rec(client, dst_region: str, dst_agent: str) -> None:
     """Deploy a file repository system with recursive scanning.
 
@@ -175,7 +174,6 @@ def filerepo_deploy_multi_node_rec(client, dst_region: str, dst_agent: str) -> N
 
     except Exception as e:
         logger.error(f"Error in filerepo_deploy_multi_node_rec: {e}", exc_info=True)
-
 
 def filerepo_deploy_multi_node_tox_results(client, dst_region: str, dst_agent: str) -> None:
     """Deploy a file repository system for toxicology results data.
@@ -301,7 +299,6 @@ def filerepo_deploy_multi_node_tox_results(client, dst_region: str, dst_agent: s
     except Exception as e:
         logger.error(f"Error in filerepo_deploy_multi_node_tox_results: {e}", exc_info=True)
 
-
 def pathworker_executor_deploy_single_node_plugin(client, dst_region: str, dst_agent: str) -> None:
     """Deploy a pathworker executor plugin for digital path processing.
 
@@ -415,7 +412,6 @@ def pathworker_executor_deploy_single_node_plugin(client, dst_region: str, dst_a
     except Exception as e:
         logger.error(f"Error in pathworker_executor_deploy_single_node_plugin: {e}", exc_info=True)
 
-
 def interactive_executor_deploy_single_node_plugin_pushonly(client, dst_region: str, dst_agent: str) -> None:
     """Deploy an interactive executor service with push-only mode.
 
@@ -527,7 +523,6 @@ def wait_for_connection(client, max_attempts: int = 10) -> bool:
         logger.error(f"Failed to connect after {max_attempts} attempts")
         return False
 
-
 def check_controller_active(client, dst_region: str, dst_agent: str) -> bool:
     """Check if controller is active and log status.
 
@@ -553,7 +548,6 @@ def check_controller_active(client, dst_region: str, dst_agent: str) -> bool:
     except Exception as e:
         logger.error(f"Error checking controller status: {e}")
         return False
-
 
 def wait_for_pipeline(client, pipeline_id: str, target_status: int = 10, timeout: int = 60) -> bool:
     """Wait for pipeline to reach desired status.
@@ -584,7 +578,6 @@ def wait_for_pipeline(client, pipeline_id: str, target_status: int = 10, timeout
     logger.error(f"Timeout waiting for pipeline {pipeline_id} to reach status {target_status}")
     return False
 
-
 def setup_logging_stream(client, dst_region: str, dst_agent: str, callback: Optional[Callable] = None) -> Any:
     """Setup a log stream for the specified region/agent.
 
@@ -608,7 +601,6 @@ def setup_logging_stream(client, dst_region: str, dst_agent: str, callback: Opti
     log.connect()
     log.update_config(dst_region, dst_agent)
     return log
-
 
 def setup_dataplane_stream(client, stream_query: str, callback: Optional[Callable] = None) -> Any:
     """Setup a dataplane stream with the specified query.
@@ -635,7 +627,6 @@ def setup_dataplane_stream(client, stream_query: str, callback: Optional[Callabl
     dp = client.get_dataplane(stream_query, callback)
     dp.connect()
     return dp
-
 
 def upload_plugin(client, jar_path: str) -> Dict[str, Any]:
     """Upload a plugin to the global controller.
@@ -800,7 +791,6 @@ def filerepo_deploy_single_node(client, dst_region: str, dst_agent: str) -> None
     except Exception as e:
         logger.error(f"Error in filerepo_deploy_single_node: {e}", exc_info=True)
 
-
 def filerepo_deploy_multi_node(client, dst_region: str, dst_agent: str) -> None:
     """Deploy a file repository system across multiple nodes.
 
@@ -921,7 +911,6 @@ def filerepo_deploy_multi_node(client, dst_region: str, dst_agent: str) -> None:
     except Exception as e:
         logger.error(f"Error in filerepo_deploy_multi_node: {e}", exc_info=True)
 
-
 def filerepo_deploy_multi_node_tox(client, dst_region: str, dst_agent: str) -> None:
     """Deploy a file repository system for toxicology data.
 
@@ -1041,7 +1030,6 @@ def filerepo_deploy_multi_node_tox(client, dst_region: str, dst_agent: str) -> N
 
     except Exception as e:
         logger.error(f"Error in filerepo_deploy_multi_node_tox: {e}", exc_info=True)
-
 
 def filerepo_deploy_multi_node_plugin(client, dst_region: str, dst_agent: str) -> None:
     """Deploy file repository plugins across multiple nodes.
@@ -1308,7 +1296,6 @@ def executor_deploy_single_node_pipeline(client, dst_region: str, dst_agent: str
     except Exception as e:
         logger.error(f"Error in executor_deploy_single_node_pipeline: {e}", exc_info=True)
 
-
 def executor_deploy_single_node_plugin(client, dst_region: str, dst_agent: str) -> None:
     """Deploy an executor service as a standalone plugin.
 
@@ -1402,7 +1389,6 @@ def executor_deploy_single_node_plugin(client, dst_region: str, dst_agent: str) 
 
     except Exception as e:
         logger.error(f"Error in executor_deploy_single_node_plugin: {e}", exc_info=True)
-
 
 def interactive_executor_deploy_single_node_plugin(client, dst_region: str, dst_agent: str) -> None:
     """Deploy an interactive executor service.
@@ -1666,7 +1652,6 @@ def debug_agent(client, dst_region: str, dst_agent: str) -> None:
     except Exception as e:
         logger.error(f"Error in debug_agent: {e}", exc_info=True)
 
-
 def upgrade_controller_plugin(client, dst_region: str, dst_agent: str, jar_file_path: str) -> None:
     """Upgrade a controller plugin.
 
@@ -1705,7 +1690,6 @@ def upgrade_controller_plugin(client, dst_region: str, dst_agent: str, jar_file_
 
     except Exception as e:
         logger.error(f"Error in upgrade_controller_plugin: {e}", exc_info=True)
-
 
 def remove_dead_plugins2(client, dst_region: str, dst_agent: str) -> None:
     """Remove plugins that are no longer active.
