@@ -54,33 +54,21 @@ if client.connect():
         logger.info(f"Global region: {global_region}, Global agent: {global_agent}")
 
         stunnel_tester = STunnelTest(client, logger)
-        stunnel_id_0 = str(uuid.uuid1())
-        stunnel_tester.create_tunnel(stunnel_id_0, global_region, global_agent, '2222', global_region, global_agent, '192.168.4.249', '2221', '8192')
 
+        # Example 1: Create a tunnel using existing system plugins
+
+        stunnel_id_1 = str(uuid.uuid1())
+        stunnel_tester.create_tunnel(stunnel_id_1, global_region, global_agent, '2222',
+                                     global_region, global_agent, '192.168.4.249', '2221',
+                                     '8192', use_existing_plugins=True)
         '''
-        stream_name = "stunnel_id is NOT NULL and type is NOT NULL"
-        # Create dataplane with callbacks
-        dp = client.get_dataplane(
-            stream_name,
-            text_callback,
-            binary_callback
-        )
-        dp.connect()
-
-
-        # Create and run DataplaneTest with the connected client
-        dataplane_tester = DataplaneTest(client, logger)
-        success = dataplane_tester.run_test(num_messages=100, delay=0.1)
-
-        if success:
-            logger.info("Dataplane test completed successfully")
-        else:
-            logger.error("Dataplane test failed")
-
-        while True:
-            time.sleep(1)
-        
+        # Example 2: Create a tunnel using CADL deployment
+        stunnel_id_2 = str(uuid.uuid1())
+        stunnel_tester.create_tunnel(stunnel_id_2, global_region, global_agent, '4444',
+                                     global_region, global_agent, '192.168.4.249', '4441',
+                                     '8192', use_existing_plugins=False)
         '''
+
 
     except Exception as e:
         logger.error(f"Error: {e}")

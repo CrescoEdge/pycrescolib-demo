@@ -418,6 +418,68 @@ class messaging_sync(messaging):
                 self._failed_connection = True
                 return {} if is_rpc else None
 
+    def global_plugin_msgevent(self, is_rpc, message_event_type, message_payload, dst_region, dst_agent, dst_plugin,
+                               timeout=8.0):
+        """Synchronous wrapper for sending a message to a specific plugin on a specific agent."""
+        if self._failed_connection:
+            logger.warning("Not attempting to send message due to known connection failure")
+            return {} if is_rpc else None
+
+        with self._operation_lock:
+            try:
+                message_info = {
+                    'message_type': 'global_plugin_msgevent',
+                    'message_event_type': message_event_type,
+                    'dst_region': dst_region,
+                    'dst_agent': dst_agent,
+                    'dst_plugin': dst_plugin,
+                    'is_rpc': is_rpc
+                }
+                message = {
+                    'message_info': message_info,
+                    'message_payload': message_payload
+                }
+                json_message = json.dumps(message)
+                logger.info(
+                    f"Sending global_plugin_msgevent/{message_event_type} to {dst_region}/{dst_agent}/{dst_plugin} (RPC: {is_rpc})")
+                if 'action' in message_payload:
+                    logger.info(f"Action: {message_payload['action']}")
+
+                if is_rpc:
+                    try:
+                        response_text = self.ws_interface.send_direct(json_message, timeout=timeout)
+                    except (ConnectionError, TimeoutError, concurrent.futures.TimeoutError) as e:
+                        self._failed_connection = True
+                        logger.error(f"Connection failure during send_direct: {e}")
+                        return {}
+
+                    try:
+                        response = json.loads(response_text)
+                        return response
+                    except json.JSONDecodeError as e:
+                        logger.error(f"Invalid JSON response: {response_text[:200]}...")
+                        return {}
+                else:
+                    if not self.ws_interface._loop or self.ws_interface._loop.is_closed():
+                        logger.error("Event loop is closed or not initialized")
+                        self._failed_connection = True
+                        return None
+
+                    try:
+                        future = asyncio.run_coroutine_threadsafe(
+                            self.ws_interface.send_async(json_message),
+                            self.ws_interface._loop
+                        )
+                        future.result(timeout=timeout)
+                    except (ConnectionError, TimeoutError, concurrent.futures.TimeoutError) as e:
+                        self._failed_connection = True
+                        logger.error(f"Connection failure during async send: {e}")
+                    return None
+            except Exception as e:
+                logger.error(f"Error in global_plugin_msgevent: {e}")
+                self._failed_connection = True
+                return {} if is_rpc else None
+
     def reset_connection_state(self):
         """Reset the connection state flag."""
         with self._operation_lock:

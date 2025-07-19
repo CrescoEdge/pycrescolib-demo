@@ -4,7 +4,7 @@ import time
 import logging
 import urllib
 import uuid
-from typing import Dict, Any
+from typing import Dict, Any, Tuple, List
 from urllib import request
 
 from pycrescolib.utils import decompress_param, compress_param, json_serialize
@@ -13,7 +13,7 @@ from pycrescolib.utils import decompress_param, compress_param, json_serialize
 class STunnelTest:
     def __init__(self, client, logger=None):
         """
-        Initialize the DataplaneTest class with a Cresco client
+        Initialize the STunnelTest class with a Cresco client
 
         Args:
             client: A connected pycrescolib clientlib instance
@@ -30,61 +30,130 @@ class STunnelTest:
             logging.basicConfig(level=logging.INFO)
             self.logger = logging.getLogger(__name__)
 
-    def text_callback(self, message):
-        """Callback for handling text messages from the dataplane"""
+    def create_tunnel(self, stunnel_id: str, src_region: str, src_agent: str, src_port: str,
+                      dst_region: str, dst_agent: str, dst_host: str, dst_port: str,
+                      buffer_size: str, use_existing_plugins: bool = False) -> None:
+        """
+        Create a tunnel, either by deploying new plugins or using existing ones.
+
+        Args:
+            stunnel_id: A unique ID for the tunnel.
+            src_region: The source region.
+            src_agent: The source agent.
+            src_port: The source port.
+            dst_region: The destination region.
+            dst_agent: The destination agent.
+            dst_host: The destination host.
+            dst_port: The destination port.
+            buffer_size: The buffer size for the tunnel.
+            use_existing_plugins: If True, try to use existing system plugins.
+        """
+        if use_existing_plugins:
+            self.logger.info("Attempting to create tunnel using existing system plugins.")
+            src_plugin_id, dst_plugin_id, all_src_plugins, all_dst_plugins = self._find_existing_stunnel_plugins(src_region, src_agent, dst_region, dst_agent)
+
+            if src_plugin_id and dst_plugin_id:
+                self.logger.info(f"Found existing stunnel plugins: src_plugin_id={src_plugin_id}, dst_plugin_id={dst_plugin_id}")
+                self._configure_existing_tunnel(stunnel_id, src_region, src_agent, src_port,
+                                                dst_region, dst_agent, dst_host, dst_port,
+                                                buffer_size, src_plugin_id, dst_plugin_id)
+                return
+            else:
+                self.logger.error("PROCESS FAILED: Could not find the required existing system stunnel plugins.")
+                self.logger.error("Please ensure that stunnel plugins are running on both the source and destination agents and that their names start with 'system-' or 'systems-'.")
+                self.logger.info(f"Plugins found on source agent ({src_region}/{src_agent}): {json.dumps(all_src_plugins, indent=2)}")
+                self.logger.info(f"Plugins found on destination agent ({dst_region}/{dst_agent}): {json.dumps(all_dst_plugins, indent=2)}")
+                return # Stop the process
+
+        else:
+            self.logger.info("Creating tunnel using CADL deployment.")
+            self._create_tunnel_with_cadl(stunnel_id, src_region, src_agent, src_port,
+                                         dst_region, dst_agent, dst_host, dst_port,
+                                         buffer_size)
+
+    def _find_existing_stunnel_plugins(self, src_region: str, src_agent: str, dst_region: str, dst_agent: str) -> Tuple[str, str, List[Dict], List[Dict]]:
+        """
+        Find existing stunnel system plugins on the source and destination agents.
+
+        Args:
+            src_region: The source region.
+            src_agent: The source agent.
+            dst_region: The destination region.
+            dst_agent: The destination agent.
+
+        Returns:
+            A tuple containing (src_plugin_id, dst_plugin_id, all_src_plugins, all_dst_plugins).
+        """
         try:
-            # Try to parse as JSON for better formatting
-            try:
-                json_msg = json.loads(message)
-                self.logger.info(f"Text message (JSON): {json.dumps(json_msg, indent=2)}")
-            except json.JSONDecodeError:
-                # Not JSON, log as plain text
-                self.logger.info(f"Text message: {message}")
-        except Exception as e:
-            self.logger.error(f"Error in text callback: {e}")
+            src_plugin_id = None
+            dst_plugin_id = None
 
-    def binary_callback(self, data):
-        """Callback for handling binary messages from the dataplane"""
+            # Directly query the source agent for its plugins
+            self.logger.info(f"Querying plugins for source agent: {src_region}/{src_agent}")
+            all_src_plugins = self.client.agents.list_plugin_agent(src_region, src_agent)
+            for plugin in all_src_plugins:
+                plugin_id = plugin.get("plugin_id", "")
+                if plugin.get("pluginname") == "io.cresco.stunnel" and (plugin_id.startswith("system-") or plugin_id.startswith("systems-")):
+                    src_plugin_id = plugin_id
+                    break
+
+            # Directly query the destination agent for its plugins
+            self.logger.info(f"Querying plugins for destination agent: {dst_region}/{dst_agent}")
+            all_dst_plugins = self.client.agents.list_plugin_agent(dst_region, dst_agent)
+            for plugin in all_dst_plugins:
+                plugin_id = plugin.get("plugin_id", "")
+                if plugin.get("pluginname") == "io.cresco.stunnel" and (plugin_id.startswith("system-") or plugin_id.startswith("systems-")):
+                    dst_plugin_id = plugin_id
+                    break
+
+            return src_plugin_id, dst_plugin_id, all_src_plugins, all_dst_plugins
+        except Exception as e:
+            self.logger.error(f"Error finding existing stunnel plugins: {e}", exc_info=True)
+            return None, None, [], []
+
+    def _configure_existing_tunnel(self, stunnel_id: str, src_region: str, src_agent: str, src_port: str,
+                                   dst_region: str, dst_agent: str, dst_host: str, dst_port: str,
+                                   buffer_size: str, src_plugin_id: str, dst_plugin_id: str) -> None:
+        """
+        Configure a tunnel using existing plugins.
+
+        Args:
+            stunnel_id: A unique ID for the tunnel.
+            src_region: The source region.
+            src_agent: The source agent.
+            src_port: The source port.
+            dst_region: The destination region.
+            dst_agent: The destination agent.
+            dst_host: The destination host.
+            dst_port: The destination port.
+            buffer_size: The buffer size for the tunnel.
+            src_plugin_id: The ID of the source stunnel plugin.
+            dst_plugin_id: The ID of the destination stunnel plugin.
+        """
         try:
-            self.logger.info(f"Binary data received: {len(data)} bytes")
+            self.logger.info(f"Configuring existing tunnel {stunnel_id} from {src_region}/{src_agent} to {dst_region}/{dst_agent}")
 
-            # You could process the binary data according to your needs
-            # For example, if it's an image, save it:
-            # with open("received_image.jpg", "wb") as f:
-            #     f.write(data)
+            message_event_type = 'CONFIG'
+            message_payload = {
+                'action': 'configsrctunnel',
+                'action_src_port': src_port,
+                'action_dst_host': dst_host,
+                'action_dst_port': dst_port,
+                'action_dst_region': dst_region,
+                'action_dst_agent': dst_agent,
+                'action_dst_plugin': dst_plugin_id,
+                'action_buffer_size': buffer_size,
+                'action_stunnel_id': stunnel_id,
+            }
 
-            # Or if it's UTF-8 text in binary form, you could decode it:
-            try:
-                text = data.decode('utf-8')
-                self.logger.info(f"Binary data decoded as UTF-8: {text[:100]}...")
-            except UnicodeDecodeError:
-                self.logger.info("Binary data is not valid UTF-8")
+            result = self.client.messaging.global_plugin_msgevent(True, message_event_type, message_payload, src_region, src_agent, src_plugin_id)
+            self.logger.info(f"Tunnel configuration result: {result}")
 
         except Exception as e:
-            self.logger.error(f"Error in binary callback: {e}")
+            self.logger.error(f"Error configuring existing tunnel: {e}")
 
-    def setup_dataplane(self):
-        """Configure and create the dataplane connection"""
-        dp_config = dict()
-        dp_config['ident_key'] = "stream_name"
-        dp_config['ident_id'] = "1234"
-        dp_config['io_type_key'] = "type"
-        dp_config['output_id'] = "output"
-        dp_config['input_id'] = "output"
 
-        # Create dataplane configuration
-        stream_name = json.dumps(dp_config)
-
-        # Create dataplane with callbacks
-        self.dp = self.client.get_dataplane(
-            stream_name,
-            self.text_callback,
-            self.binary_callback
-        )
-
-        return stream_name
-
-    def create_tunnel(self, stunnel_id, src_region, src_agent, src_port, dst_region, dst_agent, dst_host, dst_port, buffer_size) -> None:
+    def _create_tunnel_with_cadl(self, stunnel_id, src_region, src_agent, src_port, dst_region, dst_agent, dst_host, dst_port, buffer_size) -> None:
         """Deploy a file repository system across multiple nodes.
 
         Args:
@@ -99,8 +168,9 @@ class STunnelTest:
             # (1) Make sure the stunnel plugin exists on the GC
 
             # Download and upload plugin
-            jar_file_path = self.get_plugin_from_git(
-                "https://github.com/CrescoEdge/stunnel/releases/download/1.2-SNAPSHOT/stunnel-1.2-SNAPSHOT.jar")
+            #jar_file_path = self.get_plugin_from_git(
+            #    "https://github.com/CrescoEdge/stunnel/releases/download/1.2-SNAPSHOT/stunnel-1.2-SNAPSHOT.jar")
+            jar_file_path = '/Users/cody/IdeaProjects/stunnel/target/stunnel-1.2-SNAPSHOT.jar'
             reply = self.upload_plugin(jar_file_path)
 
             # Get plugin configuration
@@ -193,29 +263,6 @@ class STunnelTest:
             # (3) If plugins are in place lets configure them
             # pipeline_config is used to determine the plugin ids used in the initial plugin pair push
 
-            '''
-            String message_event_type = "CONFIG";
-            Map<String, Object> message_payload = new HashMap();
-            message_payload.put("action", "configsrctunnel");
-            message_payload.put("action_src_port", srcPort);
-            message_payload.put("action_dst_host", dstHost);
-            message_payload.put("action_dst_port", dstPort);
-            message_payload.put("action_dst_region", dstRegionId);
-            message_payload.put("action_dst_agent", dstAgentId);
-            message_payload.put("action_dst_plugin", dstPluginId);
-            if(st.nodes.get(0).params.containsKey("buffer_size")) {
-                message_payload.put("action_buffer_size", st.nodes.get(0).params.get("buffer_size"));
-            }
-            if(st.nodes.get(0).params.containsKey("watchdog_timeout")) {
-                message_payload.put("action_watchdog_timeout", st.nodes.get(0).params.get("watchdog_timeout"));
-            }
-            if(st.nodes.get(0).params.containsKey("stunnel_id")) {
-                message_payload.put("action_stunnel_id", st.nodes.get(0).params.get("stunnel_id"));
-            }
-
-            responce = Launcher.crescoManager.getCrescoClient().messaging.global_plugin_msgevent(true, message_event_type, message_payload, srcRegionId, srcAgentId, srcPluginId);
-
-            '''
 
             dst_plugin = pipeline_config['nodes'][1]['node_id']
             src_plugin = pipeline_config['nodes'][0]['node_id']
@@ -313,62 +360,3 @@ class STunnelTest:
 
         self.logger.error(f"Timeout waiting for pipeline {pipeline_id} to reach status {target_status}")
         return False
-
-    # no need for this right now
-    def run_test_db(self, num_messages=100, delay=0.1):
-        """
-        Run the dataplane test by sending a series of messages
-
-        Args:
-            num_messages: Number of messages to send (default: 100)
-            delay: Delay between messages in seconds (default: 0.1)
-
-        Returns:
-            bool: True if test completed successfully, False otherwise
-        """
-        # Setup dataplane
-        stream_name = self.setup_dataplane()
-
-        # Connect dataplane
-        if self.dp.connect():
-            self.logger.info(f"Successfully connected to dataplane stream: {stream_name}")
-
-            # Wait a moment for the connection to stabilize
-            time.sleep(2)
-
-            # Send messages in a loop
-            self.logger.info(f"Starting to send {num_messages} messages...")
-
-            for i in range(num_messages):
-                # Create a message with counter
-                message = {
-                    "type": "test",
-                    "message": f"Message #{i + 1} of {num_messages}",
-                    "timestamp": time.time()
-                }
-
-                # Send as text message (JSON)
-                self.dp.send(json.dumps(message))
-
-                # Alternate between text and binary every 10 messages
-                if i % 10 == 5:
-                    # Send binary message
-                    binary_data = f"Binary message #{i + 1} of {num_messages}".encode('utf-8')
-                    self.dp.send_binary(binary_data)
-                    self.logger.info(f"Sent binary message #{i + 1}")
-                else:
-                    self.logger.info(f"Sent text message #{i + 1}")
-
-                # Small delay to avoid overwhelming the connection
-                time.sleep(delay)
-
-            self.logger.info(f"Finished sending {num_messages} messages")
-
-            # Wait a bit to ensure all messages are processed
-            self.logger.info("Waiting for 5 seconds to ensure all messages are processed...")
-            time.sleep(5)
-
-            return True
-        else:
-            self.logger.error(f"Failed to connect to dataplane stream: {stream_name}")
-            return False
