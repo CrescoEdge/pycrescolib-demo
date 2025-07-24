@@ -1,6 +1,9 @@
 import json
 import logging
-from typing import Dict, List, Tuple
+from typing import Dict, List, Tuple, Optional
+
+from pycrescolib.utils import decompress_param
+
 
 class StunnelDirect:
     def __init__(self, client, logger=None):
@@ -21,9 +24,11 @@ class StunnelDirect:
             logging.basicConfig(level=logging.INFO)
             self.logger = logging.getLogger(__name__)
 
+
+
     def create_tunnel(self, stunnel_id: str, src_region: str, src_agent: str, src_port: str,
                       dst_region: str, dst_agent: str, dst_host: str, dst_port: str,
-                      buffer_size: str) -> None:
+                      buffer_size: str) -> dict | None:
         """
         Create a tunnel using existing system plugins.
 
@@ -39,22 +44,25 @@ class StunnelDirect:
             buffer_size: The buffer size for the tunnel.
         """
         self.logger.info("Attempting to create tunnel using existing system plugins.")
-        src_plugin_id, dst_plugin_id, all_src_plugins, all_dst_plugins = self._find_existing_stunnel_plugins(src_region, src_agent, dst_region, dst_agent)
+        src_plugin_id, dst_plugin_id = self._find_existing_stunnel_plugins(src_region, src_agent, dst_region, dst_agent)
 
         if src_plugin_id and dst_plugin_id:
             self.logger.info(f"Found existing stunnel plugins: src_plugin_id={src_plugin_id}, dst_plugin_id={dst_plugin_id}")
-            self._configure_existing_tunnel(stunnel_id, src_region, src_agent, src_port,
+            return self._configure_existing_tunnel(stunnel_id, src_region, src_agent, src_port,
                                             dst_region, dst_agent, dst_host, dst_port,
                                             buffer_size, src_plugin_id, dst_plugin_id)
+
         else:
             self.logger.error("PROCESS FAILED: Could not find the required existing system stunnel plugins.")
             self.logger.error("Please ensure that stunnel plugins are running on both the source and destination agents and that their names start with 'system-' or 'systems-'.")
-            self.logger.info(f"Plugins found on source agent ({src_region}/{src_agent}): {json.dumps(all_src_plugins, indent=2)}")
-            self.logger.info(f"Plugins found on destination agent ({dst_region}/{dst_agent}): {json.dumps(all_dst_plugins, indent=2)}")
 
-    def _find_existing_stunnel_plugins(self, src_region: str, src_agent: str, dst_region: str, dst_agent: str) -> Tuple[str, str, List[Dict], List[Dict]]:
+
+    def _find_existing_stunnel_plugins(self, src_region: str, src_agent: str, dst_region: str, dst_agent: str) -> Tuple[
+        Optional[str], Optional[str]]:
         """
         Find existing stunnel system plugins on the source and destination agents.
+
+        This method calls the helper `_find_existing_stunnel_plugin` for each agent.
 
         Args:
             src_region: The source region.
@@ -63,38 +71,20 @@ class StunnelDirect:
             dst_agent: The destination agent.
 
         Returns:
-            A tuple containing (src_plugin_id, dst_plugin_id, all_src_plugins, all_dst_plugins).
+            A tuple containing (src_plugin_id, dst_plugin_id).
         """
         try:
-            src_plugin_id = None
-            dst_plugin_id = None
-
-            # Directly query the source agent for its plugins
-            self.logger.info(f"Querying plugins for source agent: {src_region}/{src_agent}")
-            all_src_plugins = self.client.agents.list_plugin_agent(src_region, src_agent)
-            for plugin in all_src_plugins:
-                plugin_id = plugin.get("plugin_id", "")
-                if plugin.get("pluginname") == "io.cresco.stunnel" and (plugin_id.startswith("system-") or plugin_id.startswith("systems-")):
-                    src_plugin_id = plugin_id
-                    break
-
-            # Directly query the destination agent for its plugins
-            self.logger.info(f"Querying plugins for destination agent: {dst_region}/{dst_agent}")
-            all_dst_plugins = self.client.agents.list_plugin_agent(dst_region, dst_agent)
-            for plugin in all_dst_plugins:
-                plugin_id = plugin.get("plugin_id", "")
-                if plugin.get("pluginname") == "io.cresco.stunnel" and (plugin_id.startswith("system-") or plugin_id.startswith("systems-")):
-                    dst_plugin_id = plugin_id
-                    break
-
-            return src_plugin_id, dst_plugin_id, all_src_plugins, all_dst_plugins
+            self.logger.info("Finding stunnel plugins for source and destination agents.")
+            src_plugin_id = self.find_existing_stunnel_plugin(src_region, src_agent)
+            dst_plugin_id = self.find_existing_stunnel_plugin(dst_region, dst_agent)
+            return src_plugin_id, dst_plugin_id
         except Exception as e:
-            self.logger.error(f"Error finding existing stunnel plugins: {e}", exc_info=True)
-            return None, None, [], []
+            self.logger.error(f"An unexpected error occurred while finding stunnel plugins: {e}", exc_info=True)
+            return None, None
 
     def _configure_existing_tunnel(self, stunnel_id: str, src_region: str, src_agent: str, src_port: str,
                                    dst_region: str, dst_agent: str, dst_host: str, dst_port: str,
-                                   buffer_size: str, src_plugin_id: str, dst_plugin_id: str) -> None:
+                                   buffer_size: str, src_plugin_id: str, dst_plugin_id: str) -> dict:
         """
         Configure a tunnel using existing plugins.
 
@@ -129,6 +119,125 @@ class StunnelDirect:
 
             result = self.client.messaging.global_plugin_msgevent(True, message_event_type, message_payload, src_region, src_agent, src_plugin_id)
             self.logger.info(f"Tunnel configuration result: {result}")
+            if 'stunnel_config' in result:
+                return json.loads(decompress_param(result['stunnel_config']))
+
 
         except Exception as e:
             self.logger.error(f"Error configuring existing tunnel: {e}")
+            return {}
+
+    def find_existing_stunnel_plugin(self, region: str, agent: str) -> Optional[str]:
+        """
+        Find an existing stunnel system plugin on a single agent.
+
+        Args:
+            region: The agent's region.
+            agent: The agent's name.
+
+        Returns:
+            The plugin_id of the stunnel plugin, or None if not found.
+        """
+        try:
+            # Directly query the agent for its plugins
+            self.logger.info(f"Querying plugins for agent: {region}/{agent}")
+            all_plugins = self.client.agents.list_plugin_agent(region, agent)
+
+            # Search for the specific stunnel plugin
+            for plugin in all_plugins:
+                current_plugin_id = plugin.get("plugin_id", "")
+                if plugin.get("pluginname") == "io.cresco.stunnel" and \
+                        (current_plugin_id.startswith("system-") or current_plugin_id.startswith("systems-")):
+                    self.logger.info(f"Found stunnel plugin '{current_plugin_id}' on agent {region}/{agent}.")
+                    return current_plugin_id  # Return the found plugin ID immediately
+
+            # If the loop completes without finding the plugin
+            return None
+
+        except Exception as e:
+            # Log the error with traceback information for better debugging
+            self.logger.error(f"Error finding stunnel plugin on {region}/{agent}: {e}", exc_info=True)
+            # Return a default value consistent with the function's return type
+            return None
+
+    def get_tunnel_list(self, src_region: str, src_agent: str, src_plugin_id: str) -> dict | None:
+        """
+        Configure a tunnel using existing plugins.
+
+        Args:
+            src_region: The source region.
+            src_agent: The source agent.
+            src_plugin_id: The ID of the source stunnel plugin.
+        """
+        try:
+
+            message_event_type = 'EXEC'
+            message_payload = {
+                'action': 'listtunnels',
+            }
+
+            result = self.client.messaging.global_plugin_msgevent(True, message_event_type, message_payload, src_region, src_agent, src_plugin_id)
+            if 'tunnels' in result:
+                return json.loads(result['tunnels'])
+
+
+        except Exception as e:
+            self.logger.error(f"Error configuring existing tunnel: {e}")
+            return {}
+
+    def get_tunnel_status(self, src_region: str, src_agent: str, src_plugin_id: str, stunnel_id: str) -> dict | None:
+        """
+        Configure a tunnel using existing plugins.
+
+        Args:
+            src_region: The source region.
+            src_agent: The source agent.
+            src_plugin_id: The ID of the source stunnel plugin.
+            action_stunnel_id: The ID of the action stunnel.
+        """
+        try:
+
+            message_event_type = 'EXEC'
+            message_payload = {
+                'action': 'gettunnelstatus',
+                'action_stunnel_id': stunnel_id
+            }
+
+            result = self.client.messaging.global_plugin_msgevent(True, message_event_type, message_payload, src_region, src_agent, src_plugin_id)
+            if 'tunnel_status' in result:
+                return result['tunnel_status']
+
+
+        except Exception as e:
+            self.logger.error(f"Error configuring existing tunnel: {e}")
+            return {}
+
+
+    def get_tunnel_config(self, src_region: str, src_agent: str, src_plugin_id: str, stunnel_id: str) -> dict | None:
+        """
+        Configure a tunnel using existing plugins.
+
+        Args:
+            src_region: The source region.
+            src_agent: The source agent.
+            src_plugin_id: The ID of the source stunnel plugin.
+            action_stunnel_id: The ID of the action stunnel.
+        """
+        try:
+
+            message_event_type = 'EXEC'
+            message_payload = {
+                'action': 'gettunnelconfig',
+                'action_stunnel_id': stunnel_id
+            }
+
+            result = self.client.messaging.global_plugin_msgevent(True, message_event_type, message_payload, src_region, src_agent, src_plugin_id)
+            if 'tunnel_config' in result:
+                return json.loads(result['tunnel_config'])
+
+
+        except Exception as e:
+            self.logger.error(f"Error configuring existing tunnel: {e}")
+            return {}
+
+
