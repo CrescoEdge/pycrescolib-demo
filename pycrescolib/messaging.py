@@ -159,7 +159,7 @@ class messaging_sync(messaging):
         self._operation_lock = threading.RLock()  # Reentrant lock for operations
         self._failed_connection = False  # Flag to track if connection has failed
 
-    def global_controller_msgevent(self, is_rpc, message_event_type, message_payload, timeout=8.0):
+    def global_controller_msgevent(self, is_rpc, message_event_type, message_payload, timeout=8.0, region_id: Optional[str] = None, agent_id: Optional[str] = None):
         """Synchronous wrapper for global_controller_msgevent using direct send.
 
         Args:
@@ -184,6 +184,9 @@ class messaging_sync(messaging):
                     'message_event_type': message_event_type,
                     'is_rpc': is_rpc
                 }
+                if (region_id is not None) and (agent_id is not None):
+                    message_info['region_id'] = region_id
+                    message_info['agent_id'] = agent_id
 
                 # Create complete message
                 message = {
@@ -196,6 +199,90 @@ class messaging_sync(messaging):
 
                 # Log the operation
                 logger.info(f"Sending global_controller_msgevent/{message_event_type} (RPC: {is_rpc})")
+                if 'action' in message_payload:
+                    logger.info(f"Action: {message_payload['action']}")
+
+                if is_rpc:
+                    # For RPC calls, use the direct synchronous send
+                    try:
+                        response_text = self.ws_interface.send_direct(json_message, timeout=timeout)
+                    except (ConnectionError, TimeoutError, concurrent.futures.TimeoutError) as e:
+                        # Mark connection as failed for subsequent calls
+                        self._failed_connection = True
+                        logger.error(f"Connection failure during send_direct: {e}")
+                        # Return empty dict instead of raising to allow operation to continue
+                        return {}
+
+                    # Parse response
+                    try:
+                        response = json.loads(response_text)
+                        return response
+                    except json.JSONDecodeError as e:
+                        logger.error(f"Invalid JSON response: {response_text[:200]}...")
+                        return {}
+                else:
+                    # For non-RPC calls, use the WebSocket's own async send via run_coroutine_threadsafe
+                    # on the WebSocket's own event loop
+                    if not self.ws_interface._loop or self.ws_interface._loop.is_closed():
+                        logger.error("Event loop is closed or not initialized")
+                        self._failed_connection = True
+                        return None
+
+                    try:
+                        future = asyncio.run_coroutine_threadsafe(
+                            self.ws_interface.send_async(json_message),
+                            self.ws_interface._loop
+                        )
+                        future.result(timeout=timeout)
+                    except (ConnectionError, TimeoutError, concurrent.futures.TimeoutError) as e:
+                        self._failed_connection = True
+                        logger.error(f"Connection failure during async send: {e}")
+                    return None
+            except Exception as e:
+                logger.error(f"Error in global_controller_msgevent: {e}")
+                self._failed_connection = True
+                return {} if is_rpc else None
+
+    def regional_controller_msgevent(self, is_rpc, message_event_type, message_payload, timeout=8.0, region_id: Optional[str] = None, agent_id: Optional[str] = None):
+        """Synchronous wrapper for global_controller_msgevent using direct send.
+
+        Args:
+            is_rpc: Whether to expect a response
+            message_event_type: Type of message event
+            message_payload: Message content
+            timeout: Timeout in seconds (default: 8.0)
+
+        Returns:
+            Response if is_rpc is True, otherwise None
+        """
+        # Don't attempt if we know the connection is bad
+        if self._failed_connection:
+            logger.warning("Not attempting to send message due to known connection failure")
+            raise ConnectionError("WebSocket connection has failed")
+
+        with self._operation_lock:  # Thread safety
+            try:
+                # Prepare message info
+                message_info = {
+                    'message_type': 'regional_controller_msgevent',
+                    'message_event_type': message_event_type,
+                    'is_rpc': is_rpc
+                }
+                if (region_id is not None) and (agent_id is not None):
+                    message_info['region_id'] = region_id
+                    message_info['agent_id'] = agent_id
+
+                # Create complete message
+                message = {
+                    'message_info': message_info,
+                    'message_payload': message_payload
+                }
+
+                # Convert to JSON
+                json_message = json.dumps(message)
+
+                # Log the operation
+                logger.info(f"Sending regional_controller_msgevent/{message_event_type} (RPC: {is_rpc})")
                 if 'action' in message_payload:
                     logger.info(f"Action: {message_payload['action']}")
 

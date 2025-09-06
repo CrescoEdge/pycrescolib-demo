@@ -34,10 +34,9 @@ if client.connect():
         # Example 1: Create a tunnel using existing system plugins
 
         stunnel_id_1 = str(uuid.uuid1())
-        saved_stunnel_config = stunnel_direct_tester.create_tunnel(stunnel_id_1, global_region, global_agent, '2224',
-                                     global_region, 'agent-controller', '192.168.4.249', '2223',
+        saved_stunnel_config = stunnel_direct_tester.create_tunnel(stunnel_id_1, 'global-region-pks2', 'global-controller-pks2', '2224',
+                                     global_region, global_agent, '127.0.0.1', '2223',
                                      '8192')
-
 
         # we won't use the saved config, we will just reference the source region/agent and determine the system stunnel plugin
         stunnel_plugin_id = stunnel_direct_tester.find_existing_stunnel_plugin(global_region, global_agent)
